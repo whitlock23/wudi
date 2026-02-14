@@ -62,6 +62,7 @@ export interface GamePlayer {
   is_invincible: boolean;
   score_change: number;
   joined_at: string;
+  user?: { username: string };
 }
 
 export type MoveType = 'play' | 'pass';

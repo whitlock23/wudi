@@ -61,7 +61,12 @@ export default function Game() {
   return (
     <div className="h-[calc(100vh-64px)] flex flex-col">
       {room.status === 'waiting' ? (
-        <WaitingRoom roomId={room.id} players={players} ownerId={room.owner_id} />
+        <WaitingRoom 
+          roomId={room.id} 
+          joinCode={room.join_code}
+          players={players} 
+          ownerId={room.owner_id} 
+        />
       ) : (
         <PlayingRoom />
       )}

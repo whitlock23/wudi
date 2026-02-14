@@ -21,6 +21,10 @@ export default function Lobby() {
   const [joinPassword, setJoinPassword] = useState('');
   const [joinLoading, setJoinLoading] = useState(false);
 
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchCode, setSearchCode] = useState('');
+  const [searchLoading, setSearchLoading] = useState(false);
+
   useEffect(() => {
     fetchRooms();
     subscribeToRooms();
@@ -35,26 +39,17 @@ export default function Lobby() {
     setCreateLoading(true);
 
     try {
-      // Generate a simple 6-char code
-      const joinCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-
-      const { data, error } = await supabase
-        .from('rooms')
-        .insert({
-          name: newRoomName,
-          password: newRoomPassword || null,
-          join_code: joinCode,
-          owner_id: user.id,
-          status: 'waiting',
-          current_players: 0 // Trigger will handle this or we update it after join
-        })
-        .select()
-        .single();
+      const { data, error } = await supabase.rpc('create_room_custom', {
+        p_name: newRoomName.trim(),
+        p_owner_id: user.id,
+        p_password: newRoomPassword.trim() || null
+      });
 
       if (error) throw error;
+      if (!data.success) throw new Error(data.message || 'Create room failed');
 
       // Auto join
-      await handleJoinRoomLogic(data.id, newRoomPassword);
+      await handleJoinRoomLogic(data.room_id, newRoomPassword.trim());
       
     } catch (err: any) {
       alert('创建房间失败: ' + err.message);
@@ -74,7 +69,40 @@ export default function Lobby() {
   const handleJoinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRoomId) return;
-    await handleJoinRoomLogic(selectedRoomId, joinPassword);
+    await handleJoinRoomLogic(selectedRoomId, joinPassword.trim());
+  };
+
+  const handleSearchRoom = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchCode.trim()) return;
+    setSearchLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from('rooms')
+        .select('id, password')
+        .eq('join_code', searchCode.trim().toUpperCase())
+        .single();
+
+      if (error || !data) {
+        alert('未找到该房间，请检查房间号是否正确');
+        setSearchLoading(false);
+        return;
+      }
+
+      setShowSearchModal(false);
+      
+      if (data.password) {
+        setSelectedRoomId(data.id);
+        setShowJoinModal(true);
+      } else {
+        await handleJoinRoomLogic(data.id);
+      }
+    } catch (err) {
+      alert('查询失败，请稍后再试');
+    } finally {
+      setSearchLoading(false);
+    }
   };
 
   const handleJoinRoomLogic = async (roomId: string, password?: string) => {
@@ -107,14 +135,24 @@ export default function Lobby() {
     <div className="pb-20">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-slate-800">游戏大厅</h1>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm"
-        >
-          <Plus size={20} />
-          <span className="hidden sm:inline">创建房间</span>
-          <span className="sm:hidden">创建</span>
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowSearchModal(true)}
+            className="bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm"
+          >
+            <Search size={20} />
+            <span className="hidden sm:inline">加入房间</span>
+            <span className="sm:hidden">加入</span>
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm"
+          >
+            <Plus size={20} />
+            <span className="hidden sm:inline">创建房间</span>
+            <span className="sm:hidden">创建</span>
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -157,6 +195,49 @@ export default function Lobby() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Create Room Modal */}
+      {showSearchModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 animate-in fade-in zoom-in duration-200">
+            <h2 className="text-xl font-bold mb-4">加入房间</h2>
+            <form onSubmit={handleSearchRoom} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">房间号</label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={searchCode}
+                  onChange={(e) => setSearchCode(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none uppercase"
+                  placeholder="请输入6位房间号"
+                  maxLength={6}
+                />
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSearchModal(false);
+                    setSearchCode('');
+                  }}
+                  className="flex-1 py-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  disabled={searchLoading}
+                  className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {searchLoading ? '查找中...' : '加入'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

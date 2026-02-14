@@ -3,7 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
 export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { session, loading, initializeAuth } = useAuthStore();
+  const { user, loading, initializeAuth } = useAuthStore();
   const location = useLocation();
 
   useEffect(() => {
@@ -18,7 +18,7 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
     );
   }
 
-  if (!session) {
+  if (!user) {
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 

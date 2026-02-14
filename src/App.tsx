@@ -6,6 +6,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import Auth from './pages/Auth';
 import Lobby from './pages/Lobby';
 import Game from './pages/Game';
+import TestGame from './pages/TestGame';
 
 function App() {
   const { initializeAuth } = useAuthStore();
@@ -18,6 +19,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Auth />} />
+        <Route path="/test-game" element={<TestGame />} />
         
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route path="/lobby" element={<Lobby />} />

@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { useAuthStore } from './authStore';
 import { Room, RoomPlayer, Game, GamePlayer, GameMove, Card } from '../types';
-import { createDeck, shuffleDeck, sortCards } from '../utils/gameLogic';
+import { createDeck, shuffleDeck, sortCards, getPattern } from '../utils/gameLogic';
 
 interface GameStoreState {
   room: Room | null;
@@ -10,18 +11,23 @@ interface GameStoreState {
   gamePlayers: GamePlayer[];
   myHand: Card[];
   lastMove: GameMove | null;
+  tableMoves: Record<string, GameMove | null>; // Current visible move for each player
   loading: boolean;
   error: string | null;
+  pollingInterval: any | null;
   
   // Actions
   fetchRoomData: (roomId: string) => Promise<void>;
   subscribeToRoom: (roomId: string) => void;
   unsubscribeFromRoom: () => void;
+  startPolling: (roomId: string) => void;
+  stopPolling: () => void;
   
   toggleReady: (roomId: string, isReady: boolean) => Promise<void>;
   startGame: (roomId: string) => Promise<void>;
   playCards: (cards: Card[]) => Promise<void>;
   passTurn: () => Promise<void>;
+  leaveRoom: (roomId: string) => Promise<void>;
 }
 
 export const useGameStore = create<GameStoreState>((set, get) => ({
@@ -31,12 +37,16 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   gamePlayers: [],
   myHand: [],
   lastMove: null,
+  tableMoves: {},
   loading: false,
   error: null,
+  pollingInterval: null,
 
   fetchRoomData: async (roomId: string) => {
     set({ loading: true, error: null });
     try {
+      console.log('Fetching room data for:', roomId);
+      
       // 1. Fetch Room
       const { data: room, error: roomError } = await supabase
         .from('rooms')
@@ -46,14 +56,35 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       if (roomError) throw roomError;
       
       // 2. Fetch Players
-      const { data: players, error: playersError } = await supabase
+      // Explicitly fetching room_players first
+      const { data: rawPlayers, error: playersError } = await supabase
         .from('room_players')
-        .select('*, user:users(username)') // Join to get usernames
+        .select('*')
         .eq('room_id', roomId)
         .order('seat_position');
+        
       if (playersError) throw playersError;
 
-      set({ room: room as Room, players: players as any });
+      // Manually fetch user details to avoid PostgREST embedding issues
+      let playersWithUser = [];
+      if (rawPlayers && rawPlayers.length > 0) {
+        const userIds = rawPlayers.map(p => p.user_id);
+        const { data: users, error: usersError } = await supabase
+          .from('users')
+          .select('id, username')
+          .in('id', userIds);
+          
+        if (usersError) throw usersError;
+        
+        const userMap = new Map(users?.map(u => [u.id, u]) || []);
+        playersWithUser = rawPlayers.map(p => ({
+          ...p,
+          user: userMap.get(p.user_id) || { username: 'Unknown' }
+        }));
+      }
+
+      // console.log('Players fetched:', JSON.stringify(playersWithUser.map(p => ({ id: p.user_id, ready: p.is_ready })), null, 2));
+      set({ room: room as Room, players: playersWithUser as any });
 
       // 3. If playing, fetch game data
       if (room.status === 'playing') {
@@ -76,23 +107,46 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
           if (gPlayers) {
              set({ gamePlayers: gPlayers as any });
              // Extract my hand
-             const myUserId = (await supabase.auth.getUser()).data.user?.id;
+             const myUserId = useAuthStore.getState().user?.id;
              const myPlayer = gPlayers.find(p => p.user_id === myUserId);
              if (myPlayer) {
                set({ myHand: myPlayer.hand_cards as Card[] });
              }
           }
 
-          // Fetch Last Move
+          // Fetch Recent Moves to populate table
+          // Logic: Fetch enough moves to reconstruct the current round context.
           const { data: moves } = await supabase
              .from('game_moves')
              .select('*')
              .eq('game_id', game.id)
-             .order('played_at', { ascending: false })
-             .limit(1);
-          
-          if (moves && moves.length > 0) {
+              .order('played_at', { ascending: false })
+              .limit(50);
+           
+           if (moves && moves.length > 0) {
             set({ lastMove: moves[0] as GameMove });
+            
+            // Reconstruct tableMoves from history (Oldest -> Newest)
+            const sortedMoves = [...moves].reverse();
+            
+            let currentTable: Record<string, GameMove> = {};
+            let currentWinnerId: string | null = null;
+            
+            sortedMoves.forEach((m: GameMove) => {
+                if (m.move_type === 'play') {
+                    // If it's the first move of the game OR the player is the current winner (starting new round)
+                    // Then clear the table
+                    if (currentWinnerId === null || m.player_id === currentWinnerId) {
+                        currentTable = {};
+                    }
+                    // Update winner to this player (since they just played a valid hand)
+                    currentWinnerId = m.player_id;
+                }
+                // Update the table for this player
+                currentTable[m.player_id] = m;
+            });
+            
+            set({ tableMoves: currentTable });
           }
         }
       }
@@ -104,10 +158,37 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     }
   },
 
+  startPolling: (roomId: string) => {
+    // Clear existing interval if any
+    const { pollingInterval } = get();
+    if (pollingInterval) clearInterval(pollingInterval);
+
+    // Start new interval
+    const interval = setInterval(() => {
+        // Only fetch if tab is visible? (Optional optimization)
+        if (!document.hidden) {
+            get().fetchRoomData(roomId);
+        }
+    }, 2000); // Poll every 2 seconds
+
+    set({ pollingInterval: interval });
+  },
+
+  stopPolling: () => {
+    const { pollingInterval } = get();
+    if (pollingInterval) {
+        clearInterval(pollingInterval);
+        set({ pollingInterval: null });
+    }
+  },
+
   subscribeToRoom: (roomId: string) => {
+    // Start polling as backup for Realtime
+    get().startPolling(roomId);
+
     // Subscription Logic
     // 1. Room updates
-    supabase.channel(`room:${roomId}`)
+    supabase.channel(`room_updates:${roomId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, 
         (payload) => {
           if (payload.eventType === 'UPDATE') {
@@ -119,43 +200,73 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
           }
         }
       )
-      .subscribe();
-
-    // 2. Room Players updates
-    supabase.channel(`room_players:${roomId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'room_players', filter: `room_id=eq.${roomId}` },
         async () => {
-          // Re-fetch players to get joined user data easily
-          const { data: players } = await supabase
+          console.log('Room players updated, refetching...');
+          const { data: rawPlayers } = await supabase
             .from('room_players')
-            .select('*, user:users(username)')
+            .select('*')
             .eq('room_id', roomId)
             .order('seat_position');
-          if (players) set({ players: players as any });
+            
+          if (rawPlayers && rawPlayers.length > 0) {
+             const userIds = rawPlayers.map(p => p.user_id);
+             const { data: users } = await supabase.from('users').select('id, username').in('id', userIds);
+             const userMap = new Map(users?.map(u => [u.id, u]) || []);
+             const playersWithUser = rawPlayers.map(p => ({
+               ...p,
+               user: userMap.get(p.user_id) || { username: 'Unknown' }
+             }));
+             set({ players: playersWithUser as any });
+          } else {
+             set({ players: [] });
+          }
+        }
+      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `room_id=eq.${roomId}` },
+        (payload) => {
+            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                set({ game: payload.new as Game });
+                // Refresh game data (moves, players, etc) when game state changes
+                get().fetchRoomData(roomId);
+            }
         }
       )
       .subscribe();
       
-    // 3. Game updates (if playing)
-    // We can subscribe to 'games', 'game_players', 'game_moves'
-    // For simplicity, let's just listen to everything related to this room's active game
-    // Ideally we need the gameId, but we might not have it yet.
-    // So we listen when game is set.
-    // ... For now, rely on fetchRoomData handling the transition.
+    // Separate channel for game updates if needed, or merge?
+    // Let's keep it simple.
   },
 
   unsubscribeFromRoom: () => {
+    get().stopPolling();
     supabase.removeAllChannels();
   },
 
   toggleReady: async (roomId: string, isReady: boolean) => {
-    const user = (await supabase.auth.getUser()).data.user;
-    if (!user) return;
-    await supabase
-      .from('room_players')
-      .update({ is_ready: isReady })
-      .eq('room_id', roomId)
-      .eq('user_id', user.id);
+    const user = useAuthStore.getState().user;
+    if (!user) {
+        console.error('Toggle ready failed: No user');
+        return;
+    }
+    console.log(`Toggling ready for ${user.id} to ${isReady}`);
+    try {
+      const { error } = await supabase.rpc('toggle_ready', {
+        p_room_id: roomId,
+        p_user_id: user.id,
+        p_is_ready: isReady
+      });
+        
+      if (error) throw error;
+      console.log('Toggle ready success');
+      
+      // Optimistic update? No, let polling handle it to be safe.
+      // But we can trigger a fetch immediately.
+      get().fetchRoomData(roomId);
+    } catch (err: any) {
+      console.error('Failed to toggle ready:', err);
+      set({ error: '准备失败，请重试' });
+    }
   },
 
   startGame: async (roomId: string) => {
@@ -163,186 +274,155 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     if (players.length !== 4) throw new Error('需要4名玩家才能开始');
     
     // Logic:
-    // 1. Create Deck
+    // 1. Create Deck (52 cards)
     let deck = shuffleDeck(createDeck());
     
-    // 2. Deal 16 cards to each of 4 players
-    // Remaining 4 cards? No, 52 cards / 4 players = 13 cards?
-    // User rule: "52 cards... each person 16 cards" -> 16*4 = 64 cards? Impossible with 52 cards.
-    // User rule: "3 bottom cards". 52 - 3 = 49. 49 / 4 = 12.25?
-    // Wait, let me check the user input again.
-    // "52张，没有大小王... 每人16张牌" -> 16 * 4 = 64. 
-    // Is it possible the user means "including 2 decks?" No, "一副牌(52张)".
-    // Maybe my math is wrong or the rule description has conflict.
-    // "无敌通常由4人使用一副牌（52张...）"
-    // If 4 people, 52 cards. 52 / 4 = 13 cards each.
-    // User says "每人16张牌". 
-    // I must clarify or assume.
-    // Standard Dou Dizhu (3 people) is 54 cards (with jokers), 17 * 3 = 51, + 3 bottom.
-    // If 4 people, 52 cards. 
-    // Maybe user means "remove some cards" or "2 decks"?
-    // "4人使用一副牌" is explicit.
-    // If I give 12 cards to each (48), 4 left? Or 13 cards to each (52), 0 left?
-    // User says "3张底牌". 52 - 3 = 49. 49 is not divisible by 4.
-    // Maybe user made a mistake in description.
-    // "每人16张牌" -> 64 cards.
+    // 2. Deal logic for 4 players with 1 deck:
+    // 52 cards total. 
+    // No Landlord, everyone gets 13 cards.
     
-    // I will assume standard 4-player rules often use 2 decks (108 cards).
-    // But user explicitly said "一副牌 (52张)".
-    // Let's assume 12 cards each (48) + 4 bottom? Or 13 each?
-    // If I follow "52 cards" and "4 players", I CANNOT give 16 cards.
-    // I will give 12 cards to each player (48 total), and 4 bottom cards?
-    // Or 13 cards to 3 players, 10 to 1?
-    // Let's assume 12 cards each, and 4 bottom cards (or 3 as user said, 1 left?).
-    
-    // WAIT. "无敌通常由4人使用一副牌... 每人16张牌".
-    // 16 * 4 = 64. 52 < 64.
-    // Maybe user implies "remove 3, 4, 5"? No "52张" is explicit.
-    
-    // Decision: I will stick to "52 cards" and distribute them as evenly as possible.
-    // 52 cards - 3 bottom = 49.
-    // 49 / 4 = 12 cards each, plus 1 extra for someone?
-    // Or maybe "16张" is a typo for "12张"?
-    // I'll assume 12 cards for now, and 3 bottom cards (total 51), burn 1?
-    // Or just 13 cards each, no bottom?
-    // But user says "3张底牌".
-    
-    // Let's re-read carefully: "无敌通常由4人使用一副牌（52张，没有大小王）... 每人16张牌"
-    // This is mathematically impossible.
-    // I will implement 12 cards per person (48 total) + 3 bottom = 51 cards. 1 card removed (e.g. Spade A?).
-    // OR, I will use 2 decks if the user insists on 16 cards? No, user said "一副牌".
-    // I'll assume it's a typo and distribute 52-3 = 49 cards.
-    // 3 players get 12, 1 player gets 13?
-    // Or everyone gets 12, bottom is 4?
-    // Let's do: Everyone 12 cards (48), 4 bottom cards. (User said 3 bottom).
-    // Let's do: Everyone 12 cards, 4 bottom.
-    
-    // Actually, let's distribute all 52 cards. 13 each.
-    // And "Bottom cards" might be just taken from the deck?
-    // "3张底牌发给地主" -> So someone gets 3 more.
-    // If everyone starts with 12, +3 = 15.
-    // If everyone starts with 13, no cards left for bottom.
-    
-    // Best Guess: 4 players, 1 deck.
-    // Deal 49 cards? (12, 12, 12, 13) + 3 bottom? No.
-    // Deal 48 cards (12 each). 4 bottom.
-    // Landlord gets 4 bottom -> 16 cards. (Matches user's "16 cards" for landlord?)
-    // User said "每人16张牌". This implies EVERYONE has 16.
-    // That requires 64 cards.
-    // Maybe user meant 2 decks?
-    // "无敌通常由4人使用一副牌" is very specific.
-    
-    // I will try to support the user's "16 cards" requirement by using **2 decks** (104 cards) or just ignore the "52 cards" constraint if "16 cards" is more important.
-    // But "红桃2和方片2是最大的牌... 1v3". If 2 decks, there are 2 Heart 2s and 2 Diamond 2s.
-    // The rule "如果红桃2和方片2是在一个人手中" implies there is only ONE of each.
-    // So it MUST be 1 deck.
-    
-    // Conclusion: "每人16张牌" is likely a typo for "12张" or "13张".
-    // I will implement: 52 cards.
-    // Reserve 4 cards as bottom (or 3?). User said 3.
-    // 52 - 3 = 49.
-    // 49 cards distributed to 4 players.
-    // P1: 13, P2: 12, P3: 12, P4: 12.
-    // Landlord gets +3 = 15 or 16.
-    
-    // I will just distribute 12 cards to each (48), and keep 4 as bottom.
-    // Landlord gets 4 -> 16 cards. This matches "16 cards" for at least the winner!
-    // And others have 12.
-    // This seems the most logical interpretation of conflicting constraints.
-    
-    // Implementation:
-    // Deck: 52 cards.
-    // Deal: 12 * 4 = 48.
-    // Bottom: 4 cards.
-    // Random start player.
+    // const bottomCards = deck.slice(0, 4); // No bottom cards
+    const playDeck = deck; // All 52 cards
     
     const hands: Record<string, Card[]> = {};
-    const bottomCards = deck.slice(0, 4); // 4 cards for bottom
-    const playDeck = deck.slice(4); // 48 cards
     
+    // Distribute 13 cards to each player
     players.forEach((p, index) => {
-      // Give 12 cards
-      hands[p.user_id] = sortCards(playDeck.slice(index * 12, (index + 1) * 12));
+      hands[p.user_id] = sortCards(playDeck.slice(index * 13, (index + 1) * 13));
     });
 
-    // Call RPC
-    // We need to determine who is landlord later? Or now?
-    // User rule: "发完牌后，拿到红桃2和方片2的人为队友... 如果...在一个人手中... 1v3"
-    // So dealing is fully random.
-    // And the "Bottom cards" rule: "3张底牌发给地主".
-    // Wait, if team is determined by H2/D2, who is "Landlord"?
-    // "地主" usually means the 1 in 1v3.
-    // If 2v2, is there a landlord?
-    // User says: "3张底牌发给地主".
-    // This implies there is a bidding phase OR the H2/D2 holder gets them?
-    // User rule: "发牌后确认阵营".
-    // "地主首先出牌".
+    // 3. Determine Teams & Start Player
+    // Find who has H2 and D2
+    let h2Owner = null;
+    let d2Owner = null;
+    let s3Owner = null;
     
-    // Simplified Logic for MVP:
-    // 1. Deal all cards? No, need bottom.
-    // Let's stick to: 48 cards dealt, 4 bottom.
-    // Randomly assign one player as "Landlord" (or first player) to take bottom cards?
-    // OR, better:
-    // Deal 12 to everyone.
-    // Reveal bottom 4.
-    // Who gets them?
-    // Maybe the one with H2?
-    // User logic is a bit mixed with Dou Dizhu.
+    Object.entries(hands).forEach(([uid, cards]) => {
+        if (cards.some(c => c.suit === 'hearts' && c.rank === '2')) h2Owner = uid;
+        if (cards.some(c => c.suit === 'diamonds' && c.rank === '2')) d2Owner = uid;
+        if (cards.some(c => c.suit === 'spades' && c.rank === '3')) s3Owner = uid;
+    });
+
+    let invincibleId = null;
+    if (h2Owner && h2Owner === d2Owner) {
+        invincibleId = h2Owner; // One person has both -> Invincible (1v3)
+    }
     
-    // Let's try:
-    // Deal 13 to everyone (52 total). No bottom cards.
-    // If user insists on bottom cards, I'll take 4 out.
-    // But "3张底牌". 
-    // I will implement:
-    // Deal 12 to everyone (48).
-    // 3 Bottom cards (51).
-    // 1 removed card (Spade 3?).
-    // Give 3 bottom to Player 1 (Random). He becomes "Landlord" candidate.
-    
-    // Let's refine based on "Invincible" rule:
-    // The "Invincible" player is the one with H2 and D2.
-    // If split, it's 2v2.
-    // If together, it's 1v3.
-    
-    // Revised Plan:
-    // 1. Shuffle 52 cards.
-    // 2. Deal 12 cards to each of 4 players (48).
-    // 3. Remaining 4 cards are "Bottom".
-    // 4. Reveal Bottom.
-    // 5. Ask players to "Call Landlord"? Or just give to the one with H2?
-    // User: "3张底牌发给地主".
-    // I'll assume a bidding phase or random assignment for now.
-    // Randomly pick a "Start Player". Give him the 4 cards. He is "Landlord".
-    // Then check H2/D2 for teams.
+    // Start Player: Spade 3 Owner -> H2 -> D2 -> Random
+    const startPlayerId = s3Owner || h2Owner || d2Owner || players[Math.floor(Math.random() * 4)].user_id;
     
     const handsJson: Record<string, Card[]> = {};
-    players.forEach((p, idx) => {
+    players.forEach((p) => {
        handsJson[p.user_id] = hands[p.user_id];
     });
-    
-    // Assign bottom to first player (randomly picked or owner)
-    // Actually, let's just give bottom to the owner for simplicity of this turn.
-    // Or better, random.
-    const landlordIdx = Math.floor(Math.random() * 4);
-    const landlordId = players[landlordIdx].user_id;
-    
-    handsJson[landlordId] = sortCards([...handsJson[landlordId], ...bottomCards]);
-    
+
     const { error } = await supabase.rpc('start_game', {
       p_room_id: roomId,
       p_hands: handsJson,
-      p_landlord_cards: bottomCards,
-      p_first_player_id: landlordId
+      p_landlord_cards: [], // No bottom cards
+      p_first_player_id: startPlayerId,
+      p_invincible_player_id: invincibleId
     });
     
     if (error) throw error;
   },
 
   playCards: async (cards: Card[]) => {
-    // Implement play logic
+      const { game, room, myHand } = get();
+      if (!game || !room) return;
+      
+      const user = useAuthStore.getState().user;
+      if (!user) return;
+      
+      // Determine pattern
+      const pattern = getPattern(cards);
+      if (!pattern) throw new Error('Invalid card pattern');
+      
+      const hasSpade3 = myHand.some(c => c.suit === 'spades' && c.rank === '3');
+      if (hasSpade3) {
+           const playingSpade3 = cards.some(c => c.suit === 'spades' && c.rank === '3');
+           if (!playingSpade3) {
+              throw new Error('第一手牌必须包含黑桃3');
+           }
+      }
+      
+      const { error } = await supabase.rpc('play_cards', {
+          p_game_id: game.id,
+          p_player_id: user.id,
+          p_cards: cards,
+          p_move_type: pattern.type
+      });
+      
+      if (error) throw error;
+      get().fetchRoomData(room.id);
   },
 
   passTurn: async () => {
-    // Implement pass logic
+      const { game, room } = get();
+      if (!game || !room) return;
+      
+      const user = useAuthStore.getState().user;
+      if (!user) return;
+
+      const { error } = await supabase.rpc('pass_turn', {
+          p_game_id: game.id,
+          p_player_id: user.id
+      });
+      
+      if (error) throw error;
+      get().fetchRoomData(room.id);
+  },
+
+  leaveRoom: async (roomId: string) => {
+    const user = useAuthStore.getState().user;
+    if (!user) return;
+    
+    // Stop polling immediately
+    get().stopPolling();
+    
+    set({ loading: true, error: null });
+    try {
+      const { data, error } = await supabase.rpc('leave_room', {
+        p_room_id: roomId,
+        p_user_id: user.id
+      });
+        
+      if (error) throw error;
+      if (!data.success) throw new Error(data.message);
+      
+      // Clear local state
+      get().unsubscribeFromRoom();
+      set({
+        room: null,
+        players: [],
+        game: null,
+        gamePlayers: [],
+        myHand: [],
+        lastMove: null,
+        tableMoves: {}
+      });
+      
+    } catch (err: any) {
+      console.error('Leave room failed:', err);
+      // If error says "Room already deleted", we should still clean up local state
+      if (err.message && (err.message.includes('Room already deleted') || err.message.includes('not found'))) {
+          get().unsubscribeFromRoom();
+          set({
+            room: null,
+            players: [],
+            game: null,
+            gamePlayers: [],
+            myHand: [],
+            lastMove: null,
+            tableMoves: {}
+          });
+          return;
+      }
+
+      set({ error: err.message });
+      throw err;
+    } finally {
+      set({ loading: false });
+    }
   }
 }));

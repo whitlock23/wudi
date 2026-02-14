@@ -1,27 +1,50 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
 import { RoomPlayer } from '../types';
-import { Check, User as UserIcon, Play, Copy } from 'lucide-react';
+import { Check, User as UserIcon, Play, Copy, LogOut } from 'lucide-react';
 import clsx from 'clsx';
 
 interface WaitingRoomProps {
   roomId: string;
+  joinCode: string;
   players: RoomPlayer[];
   ownerId: string;
 }
 
-export const WaitingRoom: React.FC<WaitingRoomProps> = ({ roomId, players, ownerId }) => {
-  const { toggleReady, startGame } = useGameStore();
+export const WaitingRoom: React.FC<WaitingRoomProps> = ({ roomId, joinCode, players, ownerId }) => {
+  const navigate = useNavigate();
+  const { toggleReady, startGame, leaveRoom } = useGameStore();
   const { user } = useAuthStore();
 
   const myPlayer = players.find(p => p.user_id === user?.id);
   const isOwner = user?.id === ownerId;
   const allReady = players.length === 4 && players.every(p => p.is_ready);
 
-  const handleCopyInvite = () => {
-    // In a real app, copy link
-    alert(`房间ID: ${roomId}`);
+  const handleCopyInvite = async () => {
+    const inviteText = `来玩无敌扑克！房间号: ${joinCode}`;
+    try {
+      await navigator.clipboard.writeText(inviteText);
+      alert(`已复制邀请信息：\n${inviteText}`);
+    } catch (err) {
+      // Fallback
+      alert(`房间号: ${joinCode}`);
+    }
+  };
+
+  const handleLeave = async () => {
+      if (window.confirm('确定要离开房间吗？')) {
+          try {
+              // Stop polling first to avoid race conditions with navigation
+              useGameStore.getState().stopPolling();
+              await leaveRoom(roomId);
+          } catch (error) {
+              console.error('Failed to leave room:', error);
+          } finally {
+              navigate('/lobby', { replace: true });
+          }
+      }
   };
 
   return (
@@ -30,23 +53,32 @@ export const WaitingRoom: React.FC<WaitingRoomProps> = ({ roomId, players, owner
         <div className="flex justify-between items-center mb-8">
           <div>
             <h2 className="text-2xl font-bold text-slate-800">等待玩家...</h2>
-            <p className="text-slate-500 text-sm mt-1">
-              {players.length} / 4 玩家已加入
-            </p>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-slate-500 text-sm">{players.length} / 4 玩家已加入</span>
+              <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded font-mono">#{joinCode}</span>
+            </div>
           </div>
-          <button 
-            onClick={handleCopyInvite}
-            className="text-blue-600 flex items-center gap-1 text-sm font-medium hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"
-          >
-            <Copy size={16} />
-            邀请
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={handleCopyInvite}
+              className="text-blue-600 flex items-center gap-1 text-sm font-medium hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <Copy size={16} />
+              邀请
+            </button>
+            <button 
+              onClick={handleLeave}
+              className="text-red-600 flex items-center gap-1 text-sm font-medium hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <LogOut size={16} />
+              离开
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           {[0, 1, 2, 3].map((seat) => {
-            const player = players.find(p => p.seat_position === seat) || players[seat]; 
-            // Fallback to index if seat logic isn't perfect yet
+            const player = players.find(p => p.seat_position === seat);
             
             return (
               <div 
@@ -83,10 +115,38 @@ export const WaitingRoom: React.FC<WaitingRoomProps> = ({ roomId, players, owner
           })}
         </div>
 
+        {/* Debug: Show unseated players if any */}
+        {players.some(p => p.seat_position < 0 || p.seat_position > 3 || players.filter(op => op.seat_position === p.seat_position).length > 1) && (
+           <div className="mb-6 p-4 bg-amber-50 text-amber-800 rounded-lg text-sm">
+             <p className="font-bold mb-2">⚠️ 异常状态检测</p>
+             <p>检测到部分玩家座位数据异常（可能是旧房间数据导致）。建议房主解散房间重新创建。</p>
+             <div className="mt-2 flex flex-wrap gap-2">
+               {players.filter(p => p.seat_position < 0 || p.seat_position > 3 || players.filter(op => op.seat_position === p.seat_position).length > 1).map(p => (
+                 <span key={p.user_id} className="bg-white px-2 py-1 rounded border border-amber-200">
+                   {(p as any).user?.username} (Seat: {p.seat_position})
+                 </span>
+               ))}
+             </div>
+           </div>
+        )}
+
         <div className="flex justify-center gap-4">
           {myPlayer && (
             <button
-              onClick={() => toggleReady(roomId, !myPlayer.is_ready)}
+              onClick={async () => {
+                  try {
+                      // Prevent double clicking
+                      if ((window as any)._toggling) return;
+                      (window as any)._toggling = true;
+                      
+                      const newStatus = !myPlayer.is_ready;
+                      await toggleReady(roomId, newStatus);
+                  } catch (e) {
+                      console.error(e);
+                  } finally {
+                      (window as any)._toggling = false;
+                  }
+              }}
               className={clsx(
                 "px-8 py-3 rounded-xl font-bold text-white transition-all transform active:scale-95",
                 myPlayer.is_ready 
@@ -100,7 +160,13 @@ export const WaitingRoom: React.FC<WaitingRoomProps> = ({ roomId, players, owner
 
           {isOwner && (
             <button
-              onClick={() => startGame(roomId)}
+              onClick={async () => {
+                  try {
+                      await startGame(roomId);
+                  } catch (e) {
+                      console.error(e);
+                  }
+              }}
               disabled={!allReady}
               className={clsx(
                 "px-8 py-3 rounded-xl font-bold text-white transition-all flex items-center gap-2",
