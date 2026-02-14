@@ -2,10 +2,84 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
-import { Card, Suit, GameMove } from '../types';
+import { Card, Suit, GameMove, GamePlayer } from '../types';
 import { isValidMove, sortCards } from '../utils/gameLogic';
-import { LogOut } from 'lucide-react';
+import { LogOut, RotateCcw, Home } from 'lucide-react';
 import clsx from 'clsx';
+
+// --- Components ---
+
+const GameOverModal = ({ 
+    players, 
+    multiplier, 
+    onRestart, 
+    onExit 
+}: { 
+    players: GamePlayer[]; 
+    multiplier: number;
+    onRestart: () => void;
+    onExit: () => void;
+}) => {
+    // Sort by score change descending
+    const sortedPlayers = [...players].sort((a, b) => b.score_change - a.score_change);
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-300">
+                <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-6 text-center">
+                    <h2 className="text-3xl font-black text-white uppercase tracking-wider drop-shadow-md">
+                        游戏结束
+                    </h2>
+                    <p className="text-white/80 font-medium mt-1">
+                        最终倍率: x{multiplier}
+                    </p>
+                </div>
+                
+                <div className="p-6 space-y-4">
+                    {sortedPlayers.map((p, idx) => (
+                        <div key={p.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">
+                            <div className="flex items-center gap-3">
+                                <div className={clsx(
+                                    "w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm",
+                                    idx === 0 ? "bg-yellow-100 text-yellow-700" : "bg-slate-200 text-slate-600"
+                                )}>
+                                    {idx + 1}
+                                </div>
+                                <div>
+                                    <div className="font-bold text-slate-800">
+                                        {p.user?.username || 'Unknown'}
+                                    </div>
+                                    <div className="text-xs text-slate-500 flex gap-2">
+                                        {p.is_invincible && <span className="text-purple-600 font-bold">无敌</span>}
+                                        {/* Since we didn't store team info explicitly in game_players for 2v2 teammates, we can't show it easily here yet unless we infer it */}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className={clsx(
+                                "text-xl font-black",
+                                p.score_change > 0 ? "text-red-500" : "text-slate-400"
+                            )}>
+                                {p.score_change > 0 ? '+' : ''}{p.score_change}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="p-6 bg-slate-50 flex gap-4">
+                    <button 
+                        onClick={onExit}
+                        className="flex-1 py-3 px-4 rounded-xl bg-white border-2 border-slate-200 text-slate-600 font-bold hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-2"
+                    >
+                        <Home size={18} />
+                        返回大厅
+                    </button>
+                    {/* Restart logic is not fully implemented in store yet (need to reset game state), so maybe just exit for now or implement reset */}
+                    {/* For now, just "Back to Lobby" is safest */}
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // Icons for suits
 const SuitIcon = ({ suit, small }: { suit: Suit, small?: boolean }) => {
@@ -175,6 +249,31 @@ export const PlayingRoom: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full bg-green-800 relative overflow-hidden">
+      
+      {/* --- Game Over Modal --- */}
+      {game?.status === 'finished' && (
+          <GameOverModal 
+            players={gamePlayers} 
+            multiplier={game.game_state.multiplier || 1}
+            onRestart={() => {}} // TODO: Implement restart
+            onExit={handleExit}
+          />
+      )}
+
+      {/* --- Top Info Bar --- */}
+      <div className="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-black/60 to-transparent z-10 flex justify-center pt-2 pointer-events-none">
+          <div className="bg-black/40 backdrop-blur-md px-4 py-1 rounded-full border border-white/10 text-white/90 text-sm font-medium flex gap-4 shadow-lg">
+              <div className="flex items-center gap-1">
+                  <span className="text-yellow-400">底分:</span>
+                  <span>{game?.game_state.base_score || 1}</span>
+              </div>
+              <div className="w-px h-4 bg-white/20"></div>
+              <div className="flex items-center gap-1">
+                  <span className="text-yellow-400">倍数:</span>
+                  <span className="text-lg font-bold">x{game?.game_state.multiplier || 1}</span>
+              </div>
+          </div>
+      </div>
       
       {/* --- Exit Button --- */}
       <div className="absolute top-4 right-4 z-20">

@@ -186,13 +186,21 @@ const rpcFunctions: Record<string, (params: any) => any> = {
       room_id: p_room_id,
       status: 'playing',
       current_player_id: p_first_player_id,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      game_state: {
+          multiplier: 1,
+          base_score: 1
+      }
     };
     db.games.push(newGame);
 
     const players = db.room_players.filter((rp: any) => rp.room_id === p_room_id);
     players.forEach((p: any) => {
         const hand = p_hands[p.user_id] || [];
+        // Determine if player has H2 or D2
+        const hasH2 = hand.some((c: any) => c.suit === 'hearts' && c.rank === '2');
+        const hasD2 = hand.some((c: any) => c.suit === 'diamonds' && c.rank === '2');
+
         db.game_players.push({
             game_id: newGame.id,
             user_id: p.user_id,
@@ -200,7 +208,11 @@ const rpcFunctions: Record<string, (params: any) => any> = {
             cards_count: hand.length,
             is_landlord: p.user_id === p_first_player_id,
             is_invincible: p.user_id === p_invincible_player_id,
-            joined_at: new Date().toISOString()
+            joined_at: new Date().toISOString(),
+            score_change: 0,
+            played_times: 0,
+            is_h2_owner: hasH2,
+            is_d2_owner: hasD2
         });
     });
     saveDB(db);
@@ -216,9 +228,20 @@ const rpcFunctions: Record<string, (params: any) => any> = {
     const player = db.game_players.find((gp: any) => gp.game_id === p_game_id && gp.user_id === p_player_id);
     if (!player) throw new Error('Player not found');
 
+    // Update Cards
     const playedIds = p_cards.map((c: any) => c.id);
     player.hand_cards = player.hand_cards.filter((c: any) => !playedIds.includes(c.id));
     player.cards_count = player.hand_cards.length;
+    player.played_times = (player.played_times || 0) + 1;
+
+    // Check Multiplier
+    if (!game.game_state) game.game_state = { multiplier: 1, base_score: 1 };
+    
+    if (p_move_type === 'bomb') {
+        game.game_state.multiplier = (game.game_state.multiplier || 1) * 2;
+    } else if (p_move_type === 'invincible_bomb') {
+        game.game_state.multiplier = (game.game_state.multiplier || 1) * 4;
+    }
 
     db.game_moves.unshift({
         id: `move_${Date.now()}`,
@@ -229,9 +252,109 @@ const rpcFunctions: Record<string, (params: any) => any> = {
         played_at: new Date().toISOString()
     });
 
+    // Check Win
     if (player.cards_count === 0) {
         game.status = 'finished';
         game.winner_id = p_player_id;
+        
+        // --- Scoring Logic ---
+        const allGamePlayers = db.game_players.filter((gp: any) => gp.game_id === p_game_id);
+        const winner = player;
+        
+        // Spring Check
+        let isSpring = false;
+        
+        // Determine Teams
+        // Invincible Mode (1 vs 3)
+        const invinciblePlayer = allGamePlayers.find((gp: any) => gp.is_invincible);
+        
+        // Case 1: Invincible Exists
+        if (invinciblePlayer) {
+            const isWinnerInvincible = (winner.user_id === invinciblePlayer.user_id);
+            const peasants = allGamePlayers.filter((gp: any) => gp.user_id !== invinciblePlayer.user_id);
+            
+            if (isWinnerInvincible) {
+                // Invincible Wins. Spring if ALL peasants played 0 times.
+                if (peasants.every((p: any) => (p.played_times || 0) === 0)) {
+                    isSpring = true;
+                }
+            } else {
+                // Peasants Win. Spring (Reverse Spring) if Invincible played only 1 time.
+                if ((invinciblePlayer.played_times || 0) === 1) {
+                    isSpring = true;
+                }
+            }
+            
+            if (isSpring) game.game_state.multiplier *= 2;
+            
+            const score = (game.game_state.base_score || 1) * (game.game_state.multiplier || 1);
+            
+            if (isWinnerInvincible) {
+                // Invincible wins: +3*score, Peasants: -score
+                invinciblePlayer.score_change = 3 * score;
+                peasants.forEach((p: any) => p.score_change = -score);
+            } else {
+                // Peasants win: Invincible: -3*score, Peasants: +score
+                invinciblePlayer.score_change = -3 * score;
+                peasants.forEach((p: any) => p.score_change = score);
+            }
+        } 
+        // Case 2: No Invincible (2 vs 2 Team Mode)
+        else {
+            // Find Teams: H2 and D2 holders are teammates.
+            const h2Owner = allGamePlayers.find((gp: any) => gp.is_h2_owner);
+            const d2Owner = allGamePlayers.find((gp: any) => gp.is_d2_owner);
+            
+            // Should always exist unless deck is partial? Assuming full deck.
+            if (h2Owner && d2Owner) {
+                const team1Ids = [h2Owner.user_id, d2Owner.user_id]; // Note: if same person, should be Invincible case
+                // Determine winner's team
+                const isWinnerTeam1 = team1Ids.includes(winner.user_id);
+                
+                // Spring Logic for 2v2
+                // Definition: Winning team wins, Losing team has 0 played_times total?
+                // Or losing team each player has 0 played_times?
+                // Strict Spring: Losing team never played a card.
+                const losingTeam = allGamePlayers.filter((gp: any) => 
+                    isWinnerTeam1 ? !team1Ids.includes(gp.user_id) : team1Ids.includes(gp.user_id)
+                );
+                
+                if (losingTeam.every((p: any) => (p.played_times || 0) === 0)) {
+                    isSpring = true;
+                }
+                
+                if (isSpring) game.game_state.multiplier *= 2;
+                const score = (game.game_state.base_score || 1) * (game.game_state.multiplier || 1);
+                
+                allGamePlayers.forEach((gp: any) => {
+                    if (isWinnerTeam1) {
+                        // Winner Team +score, Loser Team -score
+                        if (team1Ids.includes(gp.user_id)) gp.score_change = score;
+                        else gp.score_change = -score;
+                    } else {
+                        // Winner Team (Team 2) +score, Team 1 -score
+                        if (!team1Ids.includes(gp.user_id)) gp.score_change = score;
+                        else gp.score_change = -score;
+                    }
+                });
+            } else {
+                 // Fallback if H2/D2 not found (should not happen in full deck)
+                 // Winner takes all? Just give +score to winner, -score to others?
+                 allGamePlayers.forEach((gp: any) => {
+                     if (gp.user_id === winner.user_id) gp.score_change = 3 * (game.game_state.base_score || 1);
+                     else gp.score_change = -(game.game_state.base_score || 1);
+                 });
+            }
+        }
+
+        // Apply Scores to Total
+        allGamePlayers.forEach((gp: any) => {
+            const u = db.users.find((user: any) => user.id === gp.user_id);
+            if (u) {
+                u.total_score = (u.total_score || 0) + (gp.score_change || 0);
+            }
+        });
+
         const room = db.rooms.find((r: any) => r.id === game.room_id);
         if (room) room.status = 'finished';
         saveDB(db);

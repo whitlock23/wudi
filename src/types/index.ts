@@ -92,6 +92,7 @@ export interface GameState {
   deck?: Card[]; // Only for server/initial dealing logic, usually hidden from client
   last_move?: GameMove;
   multiplier: number;
+  base_score?: number;
   round_start_player_id?: string;
   invincible_player_id?: string; // If 1v3
 }
