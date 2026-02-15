@@ -275,10 +275,27 @@ declare
   v_next_player_id uuid;
   v_current_idx int;
   v_next_idx int;
+  v_last_play_player_id uuid;
 begin
   select * into v_game from public.games where id = p_game_id;
   if not found then raise exception 'Game not found'; end if;
   if v_game.current_player_id <> p_player_id then raise exception 'Not your turn'; end if;
+
+  -- Check if free turn
+  select player_id into v_last_play_player_id 
+  from public.game_moves 
+  where game_id = p_game_id 
+    and move_type in ('play', 'bomb', 'invincible_bomb')
+  order by played_at desc 
+  limit 1;
+  
+  if v_last_play_player_id is null then
+      raise exception 'Cannot pass on first turn';
+  end if;
+  
+  if v_last_play_player_id = p_player_id then
+      raise exception 'Cannot pass on free turn';
+  end if;
 
   insert into public.game_moves (game_id, player_id, cards_played, move_type, played_at)
   values (p_game_id, p_player_id, '[]'::jsonb, 'pass', now());

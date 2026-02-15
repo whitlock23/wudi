@@ -12,6 +12,7 @@ interface GameStoreState {
   myHand: Card[];
   lastMove: GameMove | null;
   tableMoves: Record<string, GameMove | null>; // Current visible move for each player
+  currentWinnerId: string | null; // The player who played the current winning card
   loading: boolean;
   error: string | null;
   pollingInterval: any | null;
@@ -38,6 +39,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   myHand: [],
   lastMove: null,
   tableMoves: {},
+  currentWinnerId: null,
   loading: false,
   error: null,
   pollingInterval: null,
@@ -146,7 +148,10 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
                 currentTable[m.player_id] = m;
             });
             
-            set({ tableMoves: currentTable });
+            set({ tableMoves: currentTable, currentWinnerId });
+          } else {
+            // No moves yet
+            set({ tableMoves: {}, currentWinnerId: null });
           }
         }
       }
@@ -358,11 +363,17 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   },
 
   passTurn: async () => {
-      const { game, room } = get();
+      const { game, room, currentWinnerId } = get();
       if (!game || !room) return;
       
       const user = useAuthStore.getState().user;
       if (!user) return;
+
+      // Check if free turn
+      if (currentWinnerId === user.id || currentWinnerId === null) {
+          alert('当前是你的自由出牌轮，不能跳过！');
+          return;
+      }
 
       const { error } = await supabase.rpc('pass_turn', {
           p_game_id: game.id,

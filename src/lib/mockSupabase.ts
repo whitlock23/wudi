@@ -390,6 +390,14 @@ const rpcFunctions: Record<string, (params: any) => any> = {
     if (!game) throw new Error('Game not found');
     if (game.current_player_id !== p_player_id) throw new Error('Not your turn');
 
+    // Check if free turn (cannot pass)
+    // Find last "play" move
+    const moves = db.game_moves.filter((m: any) => m.game_id === p_game_id).sort((a: any, b: any) => new Date(b.played_at).getTime() - new Date(a.played_at).getTime());
+    const lastPlay = moves.find((m: any) => m.move_type === 'play' || m.move_type === 'bomb' || m.move_type === 'invincible_bomb');
+    
+    if (!lastPlay) throw new Error('Cannot pass on first turn');
+    if (lastPlay.player_id === p_player_id) throw new Error('Cannot pass on free turn');
+
     db.game_moves.unshift({
         id: `move_${Date.now()}`,
         game_id: p_game_id,
