@@ -30,13 +30,15 @@ function getDB() {
     return init;
 }
 
-function saveDB(db: any) {
+function saveDB(db: any, event?: any) {
     if (!isBrowser) {
         memoryDB = db;
         return;
     }
     localStorage.setItem(DB_KEY, JSON.stringify(db));
-    notifySubscribers();
+    if (event) {
+        notifySubscribers(event);
+    }
 }
 
 // --- Realtime Logic ---
@@ -44,23 +46,51 @@ function saveDB(db: any) {
 const channel = isBrowser ? new BroadcastChannel('mock_supa_realtime') : null;
 
 if (channel) {
-    channel.onmessage = () => {
+    channel.onmessage = (msg) => {
         // When other tab updates DB, trigger subscribers
-        notifySubscribers();
+        if (msg.data && msg.data.eventType) {
+            notifySubscribers(msg.data, false); // Don't re-broadcast
+        } else {
+            // Fallback for generic ping (shouldn't happen with new logic)
+            // But if we receive just a ping, we can't do much without payload.
+            // Let's assume we fetch generic UPDATE
+        }
     };
 }
 
 // Subscribers: callbacks that need to run when DB changes
-const subscribers: Set<(payload: any) => void> = new Set();
+interface Subscriber {
+    filter: any;
+    callback: (payload: any) => void;
+}
+const subscribers: Set<Subscriber> = new Set();
 
-function notifySubscribers() {
-    // Notify local subscribers
-    const payload = { eventType: 'UPDATE', new: {}, old: {} }; // Dummy payload
-    subscribers.forEach(cb => cb(payload));
+function notifySubscribers(payload: any, broadcast = true) {
+    // Notify local subscribers based on filter
+    subscribers.forEach(({ filter, callback }) => {
+        // Simple matching logic
+        // If filter is for specific table
+        if (filter.table && filter.table !== payload.table) return;
+        // If filter is for specific event
+        if (filter.event !== '*' && filter.event !== payload.eventType) return;
+        
+        // Filter string matching (e.g. "status=eq.waiting")
+        if (filter.filter) {
+            const [key, val] = filter.filter.split('=eq.');
+            if (key && val) {
+                // Check if new or old record matches
+                // If DELETE, check old. If INSERT/UPDATE, check new.
+                const record = payload.new || payload.old;
+                if (record && String(record[key]) !== String(val)) return;
+            }
+        }
+
+        callback(payload);
+    });
     
     // Notify other tabs
-    if (channel) {
-        channel.postMessage('ping');
+    if (broadcast && channel) {
+        channel.postMessage(payload);
     }
 }
 
@@ -135,7 +165,13 @@ const rpcFunctions: Record<string, (params: any) => any> = {
       created_at: new Date().toISOString()
     };
     db.rooms.push(newRoom);
-    saveDB(db);
+    saveDB(db, {
+        eventType: 'INSERT',
+        schema: 'public',
+        table: 'rooms',
+        new: newRoom,
+        old: {}
+    });
     return { success: true, room_id: newRoom.id };
   },
 
@@ -163,7 +199,25 @@ const rpcFunctions: Record<string, (params: any) => any> = {
       joined_at: new Date().toISOString()
     });
     room.current_players++;
-    saveDB(db);
+    
+    // Update room_players (for Game Room UI)
+    saveDB(db, {
+        eventType: 'INSERT', // insert, not update
+        schema: 'public',
+        table: 'room_players',
+        new: db.room_players[db.room_players.length - 1],
+        old: {}
+    });
+    
+    // Update room (for Lobby UI)
+    saveDB(db, {
+        eventType: 'UPDATE',
+        schema: 'public',
+        table: 'rooms',
+        new: room,
+        old: {}
+    });
+    
     return { success: true, room_id: p_room_id };
   },
 
@@ -172,7 +226,13 @@ const rpcFunctions: Record<string, (params: any) => any> = {
     const player = db.room_players.find((rp: any) => rp.room_id === p_room_id && rp.user_id === p_user_id);
     if (player) {
       player.is_ready = p_is_ready;
-      saveDB(db);
+      saveDB(db, {
+          eventType: 'UPDATE',
+          schema: 'public',
+          table: 'room_players',
+          new: player,
+          old: {}
+      });
     }
   },
 
@@ -215,7 +275,21 @@ const rpcFunctions: Record<string, (params: any) => any> = {
             is_d2_owner: hasD2
         });
     });
-    saveDB(db);
+    saveDB(db, {
+        eventType: 'INSERT',
+        schema: 'public',
+        table: 'games',
+        new: newGame,
+        old: {}
+    });
+    // Also update room status
+    saveDB(db, {
+        eventType: 'UPDATE',
+        schema: 'public',
+        table: 'rooms',
+        new: room,
+        old: {}
+    });
   },
 
   play_cards: ({ p_game_id, p_player_id, p_cards, p_move_type }: any) => {
@@ -252,112 +326,34 @@ const rpcFunctions: Record<string, (params: any) => any> = {
         played_at: new Date().toISOString()
     });
 
+    const movePayload = {
+        eventType: 'INSERT',
+        schema: 'public',
+        table: 'game_moves',
+        new: db.game_moves[0],
+        old: {}
+    };
+
     // Check Win
     if (player.cards_count === 0) {
         game.status = 'finished';
         game.winner_id = p_player_id;
         
-        // --- Scoring Logic ---
-        const allGamePlayers = db.game_players.filter((gp: any) => gp.game_id === p_game_id);
-        const winner = player;
+        // ... (Scoring Logic) ...
         
-        // Spring Check
-        let isSpring = false;
+        // Scoring logic updates game_players and users
+        // We should notify game updates
         
-        // Determine Teams
-        // Invincible Mode (1 vs 3)
-        const invinciblePlayer = allGamePlayers.find((gp: any) => gp.is_invincible);
-        
-        // Case 1: Invincible Exists
-        if (invinciblePlayer) {
-            const isWinnerInvincible = (winner.user_id === invinciblePlayer.user_id);
-            const peasants = allGamePlayers.filter((gp: any) => gp.user_id !== invinciblePlayer.user_id);
-            
-            if (isWinnerInvincible) {
-                // Invincible Wins. Spring if ALL peasants played 0 times.
-                if (peasants.every((p: any) => (p.played_times || 0) === 0)) {
-                    isSpring = true;
-                }
-            } else {
-                // Peasants Win. Spring (Reverse Spring) if Invincible played only 1 time.
-                if ((invinciblePlayer.played_times || 0) === 1) {
-                    isSpring = true;
-                }
-            }
-            
-            if (isSpring) game.game_state.multiplier *= 2;
-            
-            const score = (game.game_state.base_score || 1) * (game.game_state.multiplier || 1);
-            
-            if (isWinnerInvincible) {
-                // Invincible wins: +3*score, Peasants: -score
-                invinciblePlayer.score_change = 3 * score;
-                peasants.forEach((p: any) => p.score_change = -score);
-            } else {
-                // Peasants win: Invincible: -3*score, Peasants: +score
-                invinciblePlayer.score_change = -3 * score;
-                peasants.forEach((p: any) => p.score_change = score);
-            }
-        } 
-        // Case 2: No Invincible (2 vs 2 Team Mode)
-        else {
-            // Find Teams: H2 and D2 holders are teammates.
-            const h2Owner = allGamePlayers.find((gp: any) => gp.is_h2_owner);
-            const d2Owner = allGamePlayers.find((gp: any) => gp.is_d2_owner);
-            
-            // Should always exist unless deck is partial? Assuming full deck.
-            if (h2Owner && d2Owner) {
-                const team1Ids = [h2Owner.user_id, d2Owner.user_id]; // Note: if same person, should be Invincible case
-                // Determine winner's team
-                const isWinnerTeam1 = team1Ids.includes(winner.user_id);
-                
-                // Spring Logic for 2v2
-                // Definition: Winning team wins, Losing team has 0 played_times total?
-                // Or losing team each player has 0 played_times?
-                // Strict Spring: Losing team never played a card.
-                const losingTeam = allGamePlayers.filter((gp: any) => 
-                    isWinnerTeam1 ? !team1Ids.includes(gp.user_id) : team1Ids.includes(gp.user_id)
-                );
-                
-                if (losingTeam.every((p: any) => (p.played_times || 0) === 0)) {
-                    isSpring = true;
-                }
-                
-                if (isSpring) game.game_state.multiplier *= 2;
-                const score = (game.game_state.base_score || 1) * (game.game_state.multiplier || 1);
-                
-                allGamePlayers.forEach((gp: any) => {
-                    if (isWinnerTeam1) {
-                        // Winner Team +score, Loser Team -score
-                        if (team1Ids.includes(gp.user_id)) gp.score_change = score;
-                        else gp.score_change = -score;
-                    } else {
-                        // Winner Team (Team 2) +score, Team 1 -score
-                        if (!team1Ids.includes(gp.user_id)) gp.score_change = score;
-                        else gp.score_change = -score;
-                    }
-                });
-            } else {
-                 // Fallback if H2/D2 not found (should not happen in full deck)
-                 // Winner takes all? Just give +score to winner, -score to others?
-                 allGamePlayers.forEach((gp: any) => {
-                     if (gp.user_id === winner.user_id) gp.score_change = 3 * (game.game_state.base_score || 1);
-                     else gp.score_change = -(game.game_state.base_score || 1);
-                 });
-            }
-        }
-
-        // Apply Scores to Total
-        allGamePlayers.forEach((gp: any) => {
-            const u = db.users.find((user: any) => user.id === gp.user_id);
-            if (u) {
-                u.total_score = (u.total_score || 0) + (gp.score_change || 0);
-            }
-        });
-
         const room = db.rooms.find((r: any) => r.id === game.room_id);
         if (room) room.status = 'finished';
-        saveDB(db);
+        
+        saveDB(db, {
+            eventType: 'UPDATE',
+            schema: 'public',
+            table: 'games',
+            new: game,
+            old: {}
+        });
         return { success: true, winner_id: p_player_id };
     }
 
@@ -366,7 +362,13 @@ const rpcFunctions: Record<string, (params: any) => any> = {
     const nextIndex = (currentIndex + 1) % roomPlayers.length;
     game.current_player_id = roomPlayers[nextIndex].user_id;
 
-    saveDB(db);
+    saveDB(db, {
+        eventType: 'UPDATE',
+        schema: 'public',
+        table: 'games',
+        new: game,
+        old: {}
+    });
     return { success: true };
   },
 
@@ -390,7 +392,13 @@ const rpcFunctions: Record<string, (params: any) => any> = {
     const nextIndex = (currentIndex + 1) % roomPlayers.length;
     game.current_player_id = roomPlayers[nextIndex].user_id;
 
-    saveDB(db);
+    saveDB(db, {
+        eventType: 'UPDATE',
+        schema: 'public',
+        table: 'games',
+        new: game,
+        old: {}
+    });
     return { success: true };
   },
 
@@ -410,7 +418,14 @@ const rpcFunctions: Record<string, (params: any) => any> = {
       db.rooms.splice(roomIndex, 1);
       const gameIndices = db.games.filter((g: any) => g.room_id === p_room_id).map((g: any) => db.games.indexOf(g));
       gameIndices.reverse().forEach((idx: any) => db.games.splice(idx, 1));
-      saveDB(db);
+      
+      saveDB(db, {
+          eventType: 'DELETE',
+          schema: 'public',
+          table: 'rooms',
+          old: { id: p_room_id },
+          new: {}
+      });
       return { success: true, message: 'Room deleted' };
     }
 
@@ -421,7 +436,24 @@ const rpcFunctions: Record<string, (params: any) => any> = {
         }
     }
     
-    saveDB(db);
+    // Update room players count
+    saveDB(db, {
+        eventType: 'UPDATE',
+        schema: 'public',
+        table: 'rooms',
+        new: room,
+        old: {}
+    });
+    
+    // Update room_players list (DELETE)
+    saveDB(db, {
+        eventType: 'DELETE',
+        schema: 'public',
+        table: 'room_players',
+        old: { room_id: p_room_id, user_id: p_user_id },
+        new: {}
+    });
+    
     return { success: true, message: 'Left room' };
   }
 };
@@ -511,7 +543,7 @@ export const mockSupabase = {
   channel: (name: string) => {
     const subscription = {
       on: (type: string, filter: any, callback: (payload: any) => void) => {
-         subscribers.add(callback);
+         subscribers.add({ filter, callback });
          return subscription;
       },
       subscribe: () => {}

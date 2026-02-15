@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLobbyStore } from '../store/lobbyStore';
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../lib/supabase';
-import { Plus, Users, Lock, Search } from 'lucide-react';
+import { Plus, Users, Lock, Search, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 
 export default function Lobby() {
@@ -134,7 +134,16 @@ export default function Lobby() {
   return (
     <div className="pb-20">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">游戏大厅</h1>
+        <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-slate-800">游戏大厅</h1>
+            <button 
+                onClick={() => fetchRooms()} 
+                className={clsx("p-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors", loading && "animate-spin")}
+                title="刷新房间列表"
+            >
+                <RefreshCw size={20} />
+            </button>
+        </div>
         <div className="flex gap-2">
           <button
             onClick={() => setShowSearchModal(true)}
