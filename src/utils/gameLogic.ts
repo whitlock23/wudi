@@ -45,8 +45,14 @@ export function sortCards(cards: Card[]): Card[] {
 }
 
 // Basic Move Validation Logic
-export function isValidMove(selectedCards: Card[], lastMove?: GameMove, remainingHandCount?: number): boolean {
+export function isValidMove(selectedCards: Card[], lastMove?: GameMove, remainingHandCount?: number, isFirstMoveOfGame: boolean = false): boolean {
   if (selectedCards.length === 0) return false;
+  
+  // Rule: First move of the game MUST include Spade 3
+  if (isFirstMoveOfGame) {
+      const hasSpade3 = selectedCards.some(c => c.suit === 'spades' && c.rank === '3');
+      if (!hasSpade3) return false;
+  }
   
   // Sort selected cards for easier analysis
   const sorted = sortCards(selectedCards);
@@ -284,10 +290,38 @@ export function getPattern(cards: Card[], remainingHandCount?: number): Pattern 
   return null;
 }
 
-export function findValidMove(hand: Card[], lastMove?: GameMove, remainingHandCount?: number): Card[] | null {
+export function findValidMove(hand: Card[], lastMove?: GameMove, remainingHandCount?: number, isFirstMoveOfGame: boolean = false): Card[] | null {
   const sortedHand = sortCards(hand);
   
-  // 1. Free turn: Play smallest single
+  // 1. First move of game: MUST include Spade 3
+  if (isFirstMoveOfGame) {
+      const spade3 = sortedHand.find(c => c.suit === 'spades' && c.rank === '3');
+      if (!spade3) return null; // Should not happen if logic is correct
+      
+      // Try to play as part of a larger pattern if possible?
+      // For simplicity, just play the single Spade 3 or the smallest combination containing it.
+      
+      // Check for Pair of 3s
+      const threes = sortedHand.filter(c => c.rank === '3');
+      if (threes.length >= 2) {
+          // Play pair if we have it? Or triple?
+          // Strategy: If we have many 3s, maybe play them together.
+          // Let's just play the single Spade 3 to be safe and simple for now.
+          // Or play the smallest valid hand.
+          // Actually, if we have 33, playing 33 is better than splitting.
+          // If we have 333, playing 333 is better.
+          // If we have 3333 (Bomb), maybe keep it?
+          
+          if (threes.length === 2) return threes;
+          if (threes.length === 3) return threes;
+          // If bomb, maybe save it? But for now let's just play it if it's the only way.
+      }
+      
+      // Default: Play single Spade 3
+      return [spade3];
+  }
+
+  // 2. Free turn: Play smallest single
   if (!lastMove || lastMove.move_type === 'pass') {
      if (sortedHand.length === 0) return null;
      return [sortedHand[sortedHand.length - 1]];

@@ -93,11 +93,19 @@ export const useTestGameStore = create<TestGameStoreState>((set, get) => ({
       const landlordId = players[landlordIdx].user_id;
       // hands[landlordId] = sortCards([...hands[landlordId], ...bottomCards]); // No extra cards
       
+      // Find Spade 3 Owner to start
+      let s3Owner = null;
+      Object.entries(hands).forEach(([uid, cards]) => {
+          if (cards.some(c => c.suit === 'spades' && c.rank === '3')) s3Owner = uid;
+      });
+      
+      const startPlayerId = s3Owner || landlordId;
+
       const game: Game = {
           id: 'test-game',
           room_id: 'test-room',
           status: 'playing',
-          current_player_id: landlordId,
+          current_player_id: startPlayerId,
           winner_id: undefined,
           created_at: new Date().toISOString(),
           game_state: { multiplier: 1 }
@@ -123,21 +131,34 @@ export const useTestGameStore = create<TestGameStoreState>((set, get) => ({
           game,
           gamePlayers,
           myHand: hands[HUMAN_ID],
-          currentPlayerId: landlordId,
+          currentPlayerId: startPlayerId,
           lastMove: null,
           currentWinningMove: null,
           tableMoves: {} // Reset table moves
       });
       
-      if (landlordId !== HUMAN_ID) {
+      if (startPlayerId !== HUMAN_ID) {
           setTimeout(() => runBots(), 1000);
       }
   },
 
   playCards: (cards: Card[]) => {
-      const { game, currentPlayerId, gamePlayers, currentWinningMove, tableMoves } = get();
+      const { game, currentPlayerId, gamePlayers, currentWinningMove, tableMoves, lastMove, myHand } = get();
       if (!game || currentPlayerId !== HUMAN_ID) return;
       
+      // Enforce Spade 3 rule for Human
+      const isFirstMoveOfGame = !lastMove;
+      if (isFirstMoveOfGame) {
+          const hasSpade3 = myHand.some(c => c.suit === 'spades' && c.rank === '3');
+          if (hasSpade3) {
+              const playingSpade3 = cards.some(c => c.suit === 'spades' && c.rank === '3');
+              if (!playingSpade3) {
+                  alert('第一手牌必须包含黑桃3');
+                  return;
+              }
+          }
+      }
+
       const move: GameMove = {
           id: `move-${Date.now()}`,
           game_id: game.id,
@@ -239,11 +260,15 @@ function runBots() {
     if (!currentWinningMove) isFreeTurn = true;
     else if (currentWinningMove.player_id === currentPlayerId) isFreeTurn = true;
     
+    // Check if it's the very first move of the game (Spade 3 rule)
+    const isFirstMoveOfGame = !state.lastMove;
+    
     // Find move
     const moveCards = findValidMove(
         hand, 
         isFreeTurn ? undefined : currentWinningMove, 
-        hand.length 
+        hand.length,
+        isFirstMoveOfGame
     );
     
     let move: GameMove;

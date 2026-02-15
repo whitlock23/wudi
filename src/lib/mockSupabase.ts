@@ -302,6 +302,18 @@ const rpcFunctions: Record<string, (params: any) => any> = {
     const player = db.game_players.find((gp: any) => gp.game_id === p_game_id && gp.user_id === p_player_id);
     if (!player) throw new Error('Player not found');
 
+    // Rule: First move of game MUST include Spade 3
+    // How to check if it's the first move?
+    // Check if game_moves is empty for this game.
+    const moves = db.game_moves.filter((m: any) => m.game_id === p_game_id);
+    if (moves.length === 0) {
+        const hasSpade3 = player.hand_cards.some((c: any) => c.suit === 'spades' && c.rank === '3');
+        if (hasSpade3) {
+             const playingSpade3 = p_cards.some((c: any) => c.suit === 'spades' && c.rank === '3');
+             if (!playingSpade3) throw new Error('First move must include Spade 3');
+        }
+    }
+
     // Update Cards
     const playedIds = p_cards.map((c: any) => c.id);
     player.hand_cards = player.hand_cards.filter((c: any) => !playedIds.includes(c.id));
