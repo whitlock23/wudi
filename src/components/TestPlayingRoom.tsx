@@ -51,10 +51,10 @@ const CardView = ({ card, selected, onClick, small }: { card: Card; selected: bo
       onClick={onClick}
       className={clsx(
         `relative ${w} ${h} bg-white rounded-lg border shadow-md flex flex-col items-center justify-between p-0.5 select-none transition-transform cursor-pointer hover:shadow-lg`,
-        selected ? "-translate-y-4 border-blue-500 ring-2 ring-blue-200" : "border-slate-200",
+        selected ? "-translate-y-6 border-blue-500 ring-2 ring-blue-200" : "border-slate-200",
         "flex-shrink-0"
       )}
-      style={{ marginLeft: small ? '-20px' : '-30px' }} 
+      style={{ marginLeft: small ? '-12px' : '-30px' }} 
     >
       <div className={`self-start ${text} font-bold flex flex-col items-center leading-none`}>
         <span className={color}>{card.rank}</span>
@@ -77,10 +77,10 @@ const CardView = ({ card, selected, onClick, small }: { card: Card; selected: bo
 const TableCards = ({ move }: { move: GameMove | null }) => {
     if (!move) return null;
     if (move.move_type === 'pass') {
-        return <div className="bg-black/40 text-white px-3 py-1 rounded-full text-sm font-bold">不出</div>;
+        return <div className="bg-black/40 text-white px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold">不出</div>;
     }
     return (
-        <div className="flex items-center pl-4">
+        <div className="flex items-center justify-center">
             {sortCards(move.cards_played).map(card => (
                 <CardView key={card.id} card={card} selected={false} small />
             ))}
@@ -186,61 +186,61 @@ export const TestPlayingRoom: React.FC = () => {
       </div>
 
       {/* --- Top Player (Bot 2) --- */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 flex flex-col items-center">
-         <div className={clsx("bg-black/40 p-2 rounded text-white text-center w-32 relative", currentPlayerId === topBot?.user_id && "ring-2 ring-yellow-400")}>
-            <div className="font-bold">{topBot?.user?.username}</div>
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 flex flex-col items-center z-10">
+         <div className={clsx("bg-black/40 p-1.5 sm:p-2 rounded text-white text-center w-24 sm:w-32 relative", currentPlayerId === topBot?.user_id && "ring-2 ring-yellow-400")}>
+            <div className="font-bold text-xs sm:text-base truncate px-1">{topBot?.user?.username}</div>
             
             {/* Hand Count Badge */}
             <div className="flex items-center justify-center gap-1 mt-1 bg-black/30 rounded px-2 py-0.5">
-                <div className="w-3 h-4 bg-white border border-slate-300 rounded-sm"></div>
-                <span className="text-sm font-bold text-yellow-300">{topBot?.cards_count}</span>
+                <div className="w-2.5 h-3.5 sm:w-3 sm:h-4 bg-white border border-slate-300 rounded-sm"></div>
+                <span className="text-xs sm:text-sm font-bold text-yellow-300">{topBot?.cards_count}</span>
             </div>
          </div>
-         <div className="mt-2 min-h-[60px]">
+         <div className="mt-1 sm:mt-2 min-h-[40px] sm:min-h-[60px]">
              <TableCards move={topMove} />
          </div>
       </div>
 
       {/* --- Left Player (Bot 1) --- */}
-      <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-row items-center gap-4">
-         <div className={clsx("bg-black/40 p-2 rounded text-white text-center w-24 relative", currentPlayerId === leftBot?.user_id && "ring-2 ring-yellow-400")}>
-            <div className="font-bold">{leftBot?.user?.username}</div>
+      <div className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 flex flex-col sm:flex-row items-center gap-2 sm:gap-4 z-10">
+         <div className={clsx("bg-black/40 p-1.5 sm:p-2 rounded text-white text-center w-20 sm:w-24 relative order-2 sm:order-1", currentPlayerId === leftBot?.user_id && "ring-2 ring-yellow-400")}>
+            <div className="font-bold text-xs sm:text-base truncate px-1">{leftBot?.user?.username}</div>
             
             {/* Hand Count Badge */}
             <div className="flex items-center justify-center gap-1 mt-1 bg-black/30 rounded px-2 py-0.5">
-                <div className="w-3 h-4 bg-white border border-slate-300 rounded-sm"></div>
-                <span className="text-sm font-bold text-yellow-300">{leftBot?.cards_count}</span>
+                <div className="w-2.5 h-3.5 sm:w-3 sm:h-4 bg-white border border-slate-300 rounded-sm"></div>
+                <span className="text-xs sm:text-sm font-bold text-yellow-300">{leftBot?.cards_count}</span>
             </div>
          </div>
-         <div className="min-w-[100px] min-h-[60px] flex items-center">
+         <div className="min-w-[80px] sm:min-w-[100px] min-h-[40px] sm:min-h-[60px] flex items-center justify-center sm:justify-start order-1 sm:order-2">
              <TableCards move={leftMove} />
          </div>
       </div>
 
       {/* --- Right Player (Bot 3) --- */}
-      <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-row-reverse items-center gap-4">
-         <div className={clsx("bg-black/40 p-2 rounded text-white text-center w-24 relative", currentPlayerId === rightBot?.user_id && "ring-2 ring-yellow-400")}>
-            <div className="font-bold">{rightBot?.user?.username}</div>
+      <div className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 flex flex-col sm:flex-row-reverse items-center gap-2 sm:gap-4 z-10">
+         <div className={clsx("bg-black/40 p-1.5 sm:p-2 rounded text-white text-center w-20 sm:w-24 relative order-2 sm:order-1", currentPlayerId === rightBot?.user_id && "ring-2 ring-yellow-400")}>
+            <div className="font-bold text-xs sm:text-base truncate px-1">{rightBot?.user?.username}</div>
             
              {/* Hand Count Badge */}
             <div className="flex items-center justify-center gap-1 mt-1 bg-black/30 rounded px-2 py-0.5">
-                <div className="w-3 h-4 bg-white border border-slate-300 rounded-sm"></div>
-                <span className="text-sm font-bold text-yellow-300">{rightBot?.cards_count}</span>
+                <div className="w-2.5 h-3.5 sm:w-3 sm:h-4 bg-white border border-slate-300 rounded-sm"></div>
+                <span className="text-xs sm:text-sm font-bold text-yellow-300">{rightBot?.cards_count}</span>
             </div>
          </div>
-         <div className="min-w-[100px] min-h-[60px] flex justify-end items-center">
+         <div className="min-w-[80px] sm:min-w-[100px] min-h-[40px] sm:min-h-[60px] flex items-center justify-center sm:justify-end order-1 sm:order-2">
              <TableCards move={rightMove} />
          </div>
       </div>
 
       {/* --- Center Info --- */}
-      <div className="flex-1 flex flex-col items-center justify-center pointer-events-none mt-12">
-        <div className="text-yellow-300 font-bold text-xl animate-pulse mb-8">
+      <div className="flex-1 flex flex-col items-center justify-center pointer-events-none mt-4 sm:mt-12 relative">
+        <div className="text-yellow-300 font-bold text-lg sm:text-xl animate-pulse mb-8">
             {isMyTurn ? "Your Turn" : `Waiting for ${gamePlayers.find(p=>p.user_id===currentPlayerId)?.user?.username || '...'}...`}
         </div>
         
         {/* My Table Cards (Just above controls) */}
-        <div className="mb-4 min-h-[60px]">
+        <div className="mb-2 sm:mb-4 min-h-[40px] sm:min-h-[60px]">
             <TableCards move={myMove} />
         </div>
       </div>
