@@ -109,7 +109,7 @@ const CardView = ({ card, selected, onClick, small }: { card: Card; selected: bo
             `relative ${w} ${h} bg-white rounded border shadow-sm flex flex-col items-center justify-start select-none cursor-default flex-shrink-0`,
             "border-slate-300"
           )}
-          style={{ marginLeft: '-20px' }} 
+          style={{ marginLeft: '-12px' }} 
         >
             {/* Number at the top */}
             <span className={clsx(text, color, "leading-none mt-1")}>{card.rank}</span>
