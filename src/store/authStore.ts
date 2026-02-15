@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { supabase } from '../lib/supabase';
+import { supabase, isMock } from '../lib/supabase';
 
 // Custom User Type
 export interface CustomUser {
@@ -25,7 +25,19 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const storedUser = localStorage.getItem('poker_user');
       if (storedUser) {
-        set({ user: JSON.parse(storedUser) });
+        const parsedUser = JSON.parse(storedUser);
+        
+        // Safety check: mismatch between Environment and stored User ID format
+        // Real DB requires UUID, while Mock DB uses "user_..." string
+        const isMockId = parsedUser.id?.startsWith('user_');
+        
+        if (!isMock && isMockId) {
+            console.warn('Detected Mock User ID in Real DB environment. Clearing session.');
+            localStorage.removeItem('poker_user');
+            set({ user: null });
+        } else {
+            set({ user: parsedUser });
+        }
       }
     } catch (e) {
       console.error('Failed to parse stored user', e);

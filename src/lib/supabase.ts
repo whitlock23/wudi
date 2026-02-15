@@ -15,6 +15,8 @@ if (!useMock && (!supabaseUrl || !supabaseAnonKey)) {
 const url = supabaseUrl || 'https://placeholder.supabase.co';
 const key = supabaseAnonKey || 'placeholder';
 
+export const isMock = useMock;
+
 export const supabase = useMock ? mockSupabase : createClient(
   url,
   key
