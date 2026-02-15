@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
+import { useThemeStore, themes } from '../store/themeStore';
+import { ThemeSelector } from './ThemeSelector';
 import { Card, Suit, GameMove, GamePlayer } from '../types';
 import { isValidMove, sortCards } from '../utils/gameLogic';
 import { LogOut, RotateCcw, Home } from 'lucide-react';
@@ -165,6 +167,9 @@ export const PlayingRoom: React.FC = () => {
   const navigate = useNavigate();
   const { myHand, lastMove, playCards, passTurn, gamePlayers, game, tableMoves, leaveRoom, room } = useGameStore();
   const { user } = useAuthStore();
+  const currentThemeId = useThemeStore(state => state.currentTheme);
+  const theme = themes[currentThemeId];
+
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
 
   const toggleSelect = (cardId: string) => {
@@ -250,7 +255,7 @@ export const PlayingRoom: React.FC = () => {
   const leftMove = leftBot ? tableMoves[leftBot.user_id] : null;
 
   return (
-    <div className="flex flex-col h-full bg-green-800 relative overflow-hidden">
+    <div className={clsx("flex flex-col h-full relative overflow-hidden transition-colors duration-500", theme.backgroundClass)}>
       
       {/* --- Game Over Modal --- */}
       {game?.status === 'finished' && (
@@ -277,8 +282,9 @@ export const PlayingRoom: React.FC = () => {
           </div>
       </div>
       
-      {/* --- Exit Button --- */}
-      <div className="absolute top-4 right-4 z-20">
+      {/* --- Top Right Controls --- */}
+      <div className="absolute top-4 right-4 z-20 flex gap-2">
+        <ThemeSelector />
         <button
           onClick={handleExit}
           className="bg-black/40 text-white/80 hover:text-white hover:bg-red-600/80 p-2 rounded-full transition-all"
@@ -321,7 +327,7 @@ export const PlayingRoom: React.FC = () => {
       {/* --- Right Player --- */}
       <div className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 flex flex-col sm:flex-row-reverse items-center gap-2 sm:gap-4 z-10">
          <div className={clsx("bg-black/40 p-1.5 sm:p-2 rounded text-white text-center w-20 sm:w-24 relative order-2 sm:order-1", currentPlayerId === rightBot?.user_id && "ring-2 ring-yellow-400")}>
-            <div className="font-bold text-xs sm:text-base truncate px-1">{rightBot?.user?.username || 'Player'}</div>
+            <div className={clsx("font-bold text-xs sm:text-base truncate px-1", theme.textColorClass)}>{rightBot?.user?.username || 'Player'}</div>
              {/* Hand Count Badge */}
             <div className="flex items-center justify-center gap-1 mt-1 bg-black/30 rounded px-2 py-0.5">
                 <div className="w-2.5 h-3.5 sm:w-3 sm:h-4 bg-white border border-slate-300 rounded-sm"></div>
@@ -335,7 +341,7 @@ export const PlayingRoom: React.FC = () => {
 
       {/* --- Center Info --- */}
       <div className="flex-1 flex flex-col items-center justify-center pointer-events-none mt-4 sm:mt-12 relative">
-        <div className="text-yellow-300 font-bold text-lg sm:text-xl animate-pulse mb-8">
+        <div className={clsx("font-bold text-lg sm:text-xl animate-pulse mb-8", theme.textColorClass)}>
             {isMyTurn ? "Your Turn" : `Waiting for ${gamePlayers.find(p=>p.user_id===currentPlayerId)?.user?.username || '...'}...`}
         </div>
         
@@ -359,7 +365,7 @@ export const PlayingRoom: React.FC = () => {
           className={clsx(
             "px-8 py-2 rounded-full font-bold shadow-lg active:scale-95 transition-all",
             canPlay 
-              ? "bg-amber-500 hover:bg-amber-600 text-white" 
+              ? theme.accentColorClass 
               : "bg-slate-400 text-slate-200 cursor-not-allowed"
           )}
         >
@@ -369,8 +375,9 @@ export const PlayingRoom: React.FC = () => {
 
       {/* --- My Hand --- */}
       <div className={clsx(
-          "h-36 sm:h-48 w-full bg-green-900/80 flex items-center justify-center px-4 sm:px-10 overflow-x-auto transition-colors",
-          isMyTurn ? "bg-green-800/90 ring-t-4 ring-yellow-400" : ""
+          "h-36 sm:h-48 w-full flex items-center justify-center px-4 sm:px-10 overflow-x-auto transition-colors",
+          "bg-black/20 backdrop-blur-sm",
+          isMyTurn ? "ring-t-4 ring-yellow-400" : ""
       )}>
         <div className="flex items-center pl-8 pr-4 py-4 min-w-min">
           {myHand.map((card) => (

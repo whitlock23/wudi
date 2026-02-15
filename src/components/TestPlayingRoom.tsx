@@ -1,6 +1,8 @@
 
 import React, { useState } from 'react';
 import { useTestGameStore } from '../store/testGameStore';
+import { useThemeStore, themes } from '../store/themeStore';
+import { ThemeSelector } from './ThemeSelector';
 import { Card, Suit, GameMove } from '../types';
 import { isValidMove, sortCards } from '../utils/gameLogic';
 import clsx from 'clsx';
@@ -128,6 +130,9 @@ const Scoreboard = ({ scores, players, onClose }: { scores: Record<string, { las
 
 export const TestPlayingRoom: React.FC = () => {
   const { myHand, playCards, passTurn, currentPlayerId, gamePlayers, currentWinningMove, tableMoves, scores } = useTestGameStore();
+  const currentThemeId = useThemeStore(state => state.currentTheme);
+  const theme = themes[currentThemeId];
+  
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [showScoreboard, setShowScoreboard] = useState(false);
 
@@ -169,7 +174,7 @@ export const TestPlayingRoom: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-green-800 relative overflow-hidden">
+    <div className={clsx("flex flex-col h-full relative overflow-hidden transition-colors duration-500", theme.backgroundClass)}>
       
       {showScoreboard && (
           <Scoreboard scores={scores} players={gamePlayers} onClose={() => setShowScoreboard(false)} />
@@ -178,11 +183,12 @@ export const TestPlayingRoom: React.FC = () => {
       {/* Top Left Controls */}
       <div className="absolute top-4 left-4 z-30 flex gap-2">
         <button 
-            className="bg-black/40 text-white px-3 py-1 rounded hover:bg-black/60 text-sm flex items-center gap-2"
+            className="bg-black/40 text-white/80 hover:text-white px-3 py-1 rounded-full hover:bg-black/60 text-sm flex items-center gap-2 transition-all"
             onClick={() => setShowScoreboard(true)}
         >
             <span>📊</span> Scoreboard
         </button>
+        <ThemeSelector />
       </div>
 
       {/* --- Top Player (Bot 2) --- */}
@@ -235,7 +241,7 @@ export const TestPlayingRoom: React.FC = () => {
 
       {/* --- Center Info --- */}
       <div className="flex-1 flex flex-col items-center justify-center pointer-events-none mt-4 sm:mt-12 relative">
-        <div className="text-yellow-300 font-bold text-lg sm:text-xl animate-pulse mb-8">
+        <div className={clsx("font-bold text-lg sm:text-xl animate-pulse mb-8", theme.textColorClass)}>
             {isMyTurn ? "Your Turn" : `Waiting for ${gamePlayers.find(p=>p.user_id===currentPlayerId)?.user?.username || '...'}...`}
         </div>
         
@@ -263,7 +269,7 @@ export const TestPlayingRoom: React.FC = () => {
           className={clsx(
             "px-8 py-2 rounded-full font-bold shadow-lg active:scale-95 transition-all",
             (canPlay && isMyTurn)
-              ? "bg-amber-500 hover:bg-amber-600 text-white" 
+              ? theme.accentColorClass 
               : "bg-slate-400 text-slate-200 cursor-not-allowed"
           )}
         >
@@ -273,8 +279,9 @@ export const TestPlayingRoom: React.FC = () => {
 
       {/* --- My Hand --- */}
       <div className={clsx(
-          "h-36 sm:h-48 w-full bg-green-900/80 flex items-center justify-center px-4 sm:px-10 overflow-x-auto transition-colors",
-          isMyTurn ? "bg-green-800/90 ring-t-4 ring-yellow-400" : ""
+          "h-36 sm:h-48 w-full flex items-center justify-center px-4 sm:px-10 overflow-x-auto transition-colors",
+          "bg-black/20 backdrop-blur-sm", // More neutral background
+          isMyTurn ? "ring-t-4 ring-yellow-400" : ""
       )}>
         <div className="flex items-center pl-8 pr-4 py-4 min-w-min">
           {myHand.map((card) => (
