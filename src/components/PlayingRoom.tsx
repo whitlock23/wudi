@@ -106,13 +106,15 @@ const CardView = ({ card, selected, onClick, small }: { card: Card; selected: bo
         <div
           onClick={onClick}
           className={clsx(
-            `relative ${w} ${h} bg-white rounded border shadow-sm flex flex-col items-center justify-center select-none cursor-default flex-shrink-0`,
+            `relative ${w} ${h} bg-white rounded border shadow-sm flex flex-col items-center justify-start select-none cursor-default flex-shrink-0`,
             "border-slate-300"
           )}
           style={{ marginLeft: '-20px' }} 
         >
-            <div className={clsx("flex items-center gap-0.5", color)}>
-                <span className={text}>{card.rank}</span>
+            {/* Number at the top */}
+            <span className={clsx(text, color, "leading-none mt-1")}>{card.rank}</span>
+            {/* Suit below */}
+            <div className="mt-0.5">
                 <SuitIcon suit={card.suit} small />
             </div>
         </div>

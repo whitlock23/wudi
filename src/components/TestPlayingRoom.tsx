@@ -6,7 +6,7 @@ import { isValidMove, sortCards } from '../utils/gameLogic';
 import clsx from 'clsx';
 
 // Icons for suits
-const SuitIcon = ({ suit }: { suit: Suit }) => {
+const SuitIcon = ({ suit, small }: { suit: Suit, small?: boolean }) => {
   const color = ['hearts', 'diamonds'].includes(suit) ? 'text-red-500' : 'text-slate-800';
   const symbol = {
     hearts: '♥',
@@ -14,16 +14,38 @@ const SuitIcon = ({ suit }: { suit: Suit }) => {
     clubs: '♣',
     spades: '♠'
   }[suit];
-  return <span className={clsx("text-lg sm:text-2xl font-bold", color)}>{symbol}</span>;
+  // Adjust size for small mode
+  const size = small ? "text-base" : "text-lg sm:text-2xl";
+  return <span className={clsx(size, "font-bold", color)}>{symbol}</span>;
 };
 
 const CardView = ({ card, selected, onClick, small }: { card: Card; selected: boolean; onClick?: () => void, small?: boolean }) => {
   const color = ['hearts', 'diamonds'].includes(card.suit) ? 'text-red-500' : 'text-slate-800';
   
-  const w = small ? "w-8" : "w-16 sm:w-24";
-  const h = small ? "h-12" : "h-24 sm:h-36";
-  const text = small ? "text-[8px]" : "text-xs sm:text-base";
+  const w = small ? "w-10" : "w-16 sm:w-24";
+  const h = small ? "h-14" : "h-24 sm:h-36";
+  const text = small ? "text-sm font-bold" : "text-xs sm:text-base";
   
+  if (small) {
+      return (
+        <div
+          onClick={onClick}
+          className={clsx(
+            `relative ${w} ${h} bg-white rounded border shadow-sm flex flex-col items-center justify-start pt-1 select-none cursor-default flex-shrink-0`,
+            "border-slate-300"
+          )}
+          style={{ marginLeft: '-20px' }} 
+        >
+            {/* Number at the top */}
+            <span className={clsx(text, color, "leading-none")}>{card.rank}</span>
+            {/* Suit below */}
+            <div className="mt-0.5">
+                <SuitIcon suit={card.suit} small />
+            </div>
+        </div>
+      );
+  }
+
   return (
     <div
       onClick={onClick}
