@@ -52,7 +52,8 @@ export default function Lobby() {
       await handleJoinRoomLogic(data.room_id, newRoomPassword.trim());
       
     } catch (err: any) {
-      alert('创建房间失败: ' + err.message);
+      console.error('Failed to create room:', err);
+      alert('创建房间失败: ' + (err.message || '未知错误'));
       setCreateLoading(false);
     }
   };
@@ -121,7 +122,8 @@ export default function Lobby() {
 
       navigate(`/game/${data.room_id}`);
     } catch (err: any) {
-      alert('加入房间失败: ' + err.message);
+      console.error('Failed to join room:', err);
+      alert('加入房间失败: ' + (err.message || '未知错误'));
     } finally {
       setJoinLoading(false);
       setShowCreateModal(false);
