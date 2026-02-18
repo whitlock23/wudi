@@ -129,7 +129,7 @@ const Scoreboard = ({ scores, players, onClose }: { scores: Record<string, { las
 };
 
 export const TestPlayingRoom: React.FC = () => {
-  const { myHand, playCards, passTurn, currentPlayerId, gamePlayers, currentWinningMove, tableMoves, scores } = useTestGameStore();
+  const { myHand, playCards, passTurn, currentPlayerId, gamePlayers, currentWinningMove, tableMoves, scores, game, lastMove } = useTestGameStore();
   const currentThemeId = useThemeStore(state => state.currentTheme);
   const theme = themes[currentThemeId];
   
@@ -158,7 +158,8 @@ export const TestPlayingRoom: React.FC = () => {
   const rightMove = rightBot ? tableMoves[rightBot.user_id] : null;
 
   const targetMove = currentWinningMove?.player_id === currentPlayerId ? undefined : currentWinningMove;
-  const canPlay = isMyTurn && selectedCardIds.length > 0 && isValidMove(selectedCardIds.map(id => myHand.find(c => c.id === id)!), targetMove);
+  const isFirstMoveOfGame = !lastMove;
+  const canPlay = isMyTurn && selectedCardIds.length > 0 && isValidMove(selectedCardIds.map(id => myHand.find(c => c.id === id)!), targetMove, myHand.length, isFirstMoveOfGame);
 
   const handlePass = () => {
     passTurn();
@@ -172,7 +173,7 @@ export const TestPlayingRoom: React.FC = () => {
   };
 
   return (
-    <div className={clsx("flex flex-col h-full relative overflow-hidden transition-colors duration-500", theme.backgroundClass)}>
+    <div className={clsx("fixed inset-0 z-[100] flex flex-col overflow-hidden transition-colors duration-500", theme.backgroundClass)}>
       
       {showScoreboard && (
           <Scoreboard scores={scores} players={gamePlayers} onClose={() => setShowScoreboard(false)} />
@@ -180,11 +181,22 @@ export const TestPlayingRoom: React.FC = () => {
       
       {/* Top Left Controls */}
       <div className="absolute top-4 left-4 z-30 flex gap-2">
+        <div className="bg-black/40 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 text-white/90 text-xs font-medium flex gap-3 shadow-lg">
+            <div className="flex items-center gap-1">
+                <span className="text-yellow-400">底:</span>
+                <span>{game?.game_state.base_score || 1}</span>
+            </div>
+            <div className="w-px h-3 bg-white/20"></div>
+            <div className="flex items-center gap-1">
+                <span className="text-yellow-400">倍:</span>
+                <span className="text-sm font-bold">x{game?.game_state.multiplier || 1}</span>
+            </div>
+        </div>
         <button 
-            className="bg-black/40 text-white/80 hover:text-white px-3 py-1 rounded-full hover:bg-black/60 text-sm flex items-center gap-2 transition-all"
+            className="bg-black/40 text-white/80 hover:text-white px-2 py-1 rounded-full hover:bg-black/60 text-xs flex items-center gap-1 transition-all"
             onClick={() => setShowScoreboard(true)}
         >
-            <span>📊</span> Scoreboard
+            <span>📊</span> Score
         </button>
         <ThemeSelector />
       </div>
@@ -206,8 +218,8 @@ export const TestPlayingRoom: React.FC = () => {
       </div>
 
       {/* --- Left Player (Bot 1) --- */}
-      <div className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 flex flex-col sm:flex-row items-center gap-2 sm:gap-4 z-10">
-         <div className={clsx("bg-black/40 p-1.5 sm:p-2 rounded text-white text-center w-20 sm:w-24 relative order-2 sm:order-1", currentPlayerId === leftBot?.user_id && "ring-2 ring-yellow-400")}>
+      <div className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 flex flex-row items-center gap-2 sm:gap-4 z-10">
+         <div className={clsx("bg-black/40 p-1.5 sm:p-2 rounded text-white text-center w-20 sm:w-24 relative", currentPlayerId === leftBot?.user_id && "ring-2 ring-yellow-400")}>
             <div className="font-bold text-xs sm:text-base truncate px-1">{leftBot?.user?.username}</div>
             
             {/* Hand Count Badge */}
@@ -216,14 +228,14 @@ export const TestPlayingRoom: React.FC = () => {
                 <span className="text-xs sm:text-sm font-bold text-yellow-300">{leftBot?.cards_count}</span>
             </div>
          </div>
-         <div className="min-w-[80px] sm:min-w-[100px] min-h-[40px] sm:min-h-[60px] flex items-center justify-center sm:justify-start order-1 sm:order-2">
+         <div className="min-w-[80px] sm:min-w-[100px] min-h-[40px] sm:min-h-[60px] flex items-center justify-center sm:justify-start">
              <TableCards move={leftMove} />
          </div>
       </div>
 
       {/* --- Right Player (Bot 3) --- */}
-      <div className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 flex flex-col sm:flex-row-reverse items-center gap-2 sm:gap-4 z-10">
-         <div className={clsx("bg-black/40 p-1.5 sm:p-2 rounded text-white text-center w-20 sm:w-24 relative order-2 sm:order-1", currentPlayerId === rightBot?.user_id && "ring-2 ring-yellow-400")}>
+      <div className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 flex flex-row-reverse items-center gap-2 sm:gap-4 z-10">
+         <div className={clsx("bg-black/40 p-1.5 sm:p-2 rounded text-white text-center w-20 sm:w-24 relative", currentPlayerId === rightBot?.user_id && "ring-2 ring-yellow-400")}>
             <div className="font-bold text-xs sm:text-base truncate px-1">{rightBot?.user?.username}</div>
             
              {/* Hand Count Badge */}
@@ -232,7 +244,7 @@ export const TestPlayingRoom: React.FC = () => {
                 <span className="text-xs sm:text-sm font-bold text-yellow-300">{rightBot?.cards_count}</span>
             </div>
          </div>
-         <div className="min-w-[80px] sm:min-w-[100px] min-h-[40px] sm:min-h-[60px] flex items-center justify-center sm:justify-end order-1 sm:order-2">
+         <div className="min-w-[80px] sm:min-w-[100px] min-h-[40px] sm:min-h-[60px] flex items-center justify-center sm:justify-end">
              <TableCards move={rightMove} />
          </div>
       </div>

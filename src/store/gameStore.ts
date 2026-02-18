@@ -296,27 +296,66 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       hands[p.user_id] = sortCards(playDeck.slice(index * 13, (index + 1) * 13));
     });
 
-    // 3. Determine Teams & Start Player
-    // Find who has H2 and D2
-    let h2Owner = null;
-    let d2Owner = null;
-    let s3Owner = null;
-    
-    Object.entries(hands).forEach(([uid, cards]) => {
-        if (cards.some(c => c.suit === 'hearts' && c.rank === '2')) h2Owner = uid;
-        if (cards.some(c => c.suit === 'diamonds' && c.rank === '2')) d2Owner = uid;
-        if (cards.some(c => c.suit === 'spades' && c.rank === '3')) s3Owner = uid;
-    });
+      // 3. Determine Teams & Start Player
+      // Check if this is the first game or subsequent game
+      const { data: previousGames } = await supabase
+        .from('games')
+        .select('*')
+        .eq('room_id', roomId)
+        .eq('status', 'finished')
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-    let invincibleId = null;
-    if (h2Owner && h2Owner === d2Owner) {
-        invincibleId = h2Owner; // One person has both -> Invincible (1v3)
-    }
-    
-    // Start Player: Spade 3 Owner -> H2 -> D2 -> Random
-    const startPlayerId = s3Owner || h2Owner || d2Owner || players[Math.floor(Math.random() * 4)].user_id;
-    
-    const handsJson: Record<string, Card[]> = {};
+      let startPlayerId;
+      
+      if (previousGames && previousGames.length > 0) {
+        // Subsequent game: Winner starts
+        const lastGame = previousGames[0];
+        startPlayerId = lastGame.winner_id;
+        
+        // Fallback if winner_id is missing (should not happen)
+        if (!startPlayerId) {
+             // Find who has H2 and D2
+            let h2Owner = null;
+            let d2Owner = null;
+            let s3Owner = null;
+            
+            Object.entries(hands).forEach(([uid, cards]) => {
+                if (cards.some(c => c.suit === 'hearts' && c.rank === '2')) h2Owner = uid;
+                if (cards.some(c => c.suit === 'diamonds' && c.rank === '2')) d2Owner = uid;
+                if (cards.some(c => c.suit === 'spades' && c.rank === '3')) s3Owner = uid;
+            });
+            startPlayerId = s3Owner || h2Owner || d2Owner || players[Math.floor(Math.random() * 4)].user_id;
+        }
+      } else {
+        // First game: Spade 3 Owner starts
+        // Find who has H2 and D2
+        let h2Owner = null;
+        let d2Owner = null;
+        let s3Owner = null;
+        
+        Object.entries(hands).forEach(([uid, cards]) => {
+            if (cards.some(c => c.suit === 'hearts' && c.rank === '2')) h2Owner = uid;
+            if (cards.some(c => c.suit === 'diamonds' && c.rank === '2')) d2Owner = uid;
+            if (cards.some(c => c.suit === 'spades' && c.rank === '3')) s3Owner = uid;
+        });
+        startPlayerId = s3Owner || h2Owner || d2Owner || players[Math.floor(Math.random() * 4)].user_id;
+      }
+  
+      // Invincible logic remains same
+      let h2Owner = null;
+      let d2Owner = null;
+      Object.entries(hands).forEach(([uid, cards]) => {
+          if (cards.some(c => c.suit === 'hearts' && c.rank === '2')) h2Owner = uid;
+          if (cards.some(c => c.suit === 'diamonds' && c.rank === '2')) d2Owner = uid;
+      });
+
+      let invincibleId = null;
+      if (h2Owner && h2Owner === d2Owner) {
+          invincibleId = h2Owner; // One person has both -> Invincible (1v3)
+      }
+      
+      const handsJson: Record<string, Card[]> = {};
     players.forEach((p) => {
        handsJson[p.user_id] = hands[p.user_id];
     });
@@ -343,11 +382,36 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       const pattern = getPattern(cards);
       if (!pattern) throw new Error('Invalid card pattern');
       
+      // Check if this is the first game of the room
+      const { count: gamesCount } = await supabase
+        .from('games')
+        .select('*', { count: 'exact', head: true })
+        .eq('room_id', room.id);
+      
+      // If gamesCount > 1, then it's not the first game (since current game is already created)
+      // Actually, playCards is called during the game.
+      // So if there are ANY finished games in this room, then this is NOT the first game.
+      const { count: finishedGamesCount } = await supabase
+        .from('games')
+        .select('*', { count: 'exact', head: true })
+        .eq('room_id', room.id)
+        .eq('status', 'finished');
+
+      const isFirstGameOfRoom = (finishedGamesCount === 0);
+
       const hasSpade3 = myHand.some(c => c.suit === 'spades' && c.rank === '3');
-      if (hasSpade3) {
-           const playingSpade3 = cards.some(c => c.suit === 'spades' && c.rank === '3');
-           if (!playingSpade3) {
-              throw new Error('第一手牌必须包含黑桃3');
+      if (isFirstGameOfRoom && hasSpade3) {
+           // Also check if this is the FIRST move of this game
+           const { count: movesCount } = await supabase
+              .from('game_moves')
+              .select('*', { count: 'exact', head: true })
+              .eq('game_id', game.id);
+           
+           if (movesCount === 0) {
+               const playingSpade3 = cards.some(c => c.suit === 'spades' && c.rank === '3');
+               if (!playingSpade3) {
+                  throw new Error('第一手牌必须包含黑桃3');
+               }
            }
       }
       

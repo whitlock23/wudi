@@ -201,7 +201,33 @@ export const PlayingRoom: React.FC = () => {
   // For now, assume lastMove is the one to beat if it wasn't me and wasn't pass?
   // But lastMove in store is just the latest record.
   
-  const canPlay = isValidMove(selectedCards, lastMove || undefined, myHand.length);
+  const isFirstMoveOfGame = !lastMove && game?.game_state.multiplier === 1; // Simplistic check. Better if we know game index.
+  // Actually, isValidMove logic for Spade 3 is purely based on "isFirstMoveOfGame" param.
+  // We need to know if it's the first GAME of the room too.
+  // The frontend store doesn't easily expose "isFirstGameOfRoom".
+  // Let's assume for now the backend will catch it, and frontend just warns if it LOOKS like first game.
+  // But wait, if we are in 2nd game, isFirstMoveOfGame will be true at start, and isValidMove will force Spade 3.
+  // So we need to disable that check in frontend for subsequent games.
+  
+  // We can check if room has any finished games?
+  // Store doesn't load game history list.
+  // Maybe we can infer from `game.created_at` vs `room.created_at`? If they are close, it's first game? Unreliable.
+  // Or just rely on backend error?
+  // User experience: Button should be clickable.
+  // Let's modify isValidMove to be less strict or pass false if we suspect it's not first game?
+  // Correct fix: Add `game_index` or `is_first_game` to Game object.
+  // For now, let's just relax the frontend check if we can't be sure.
+  // But actually, we can try to guess.
+  
+  // Temporary: Always pass false to isFirstMoveOfGame to disable frontend Spade 3 check?
+  // No, then users will try to play non-Spade 3 in first game and get backend error.
+  // Better to check if we can.
+  
+  // Let's assume for now:
+  // If we are the start player, and we have Spade 3, we *should* play it in Game 1.
+  // In Game 2, if we won, we are start player, but don't need Spade 3.
+  
+  const canPlay = isValidMove(selectedCards, lastMove || undefined, myHand.length, false); // Disable frontend strict Spade 3 check to allow Game 2+ logic. Backend will enforce if needed.
 
   const handlePlay = async () => {
     if (!canPlay) return;
@@ -255,7 +281,7 @@ export const PlayingRoom: React.FC = () => {
   const leftMove = leftBot ? tableMoves[leftBot.user_id] : null;
 
   return (
-    <div className={clsx("flex flex-col h-full relative overflow-hidden transition-colors duration-500", theme.backgroundClass)}>
+    <div className={clsx("fixed inset-0 z-[100] flex flex-col overflow-hidden transition-colors duration-500", theme.backgroundClass)}>
       
       {/* --- Game Over Modal --- */}
       {game?.status === 'finished' && (
@@ -310,8 +336,8 @@ export const PlayingRoom: React.FC = () => {
       </div>
 
       {/* --- Left Player --- */}
-      <div className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 flex flex-col sm:flex-row items-center gap-2 sm:gap-4 z-10">
-         <div className={clsx("bg-black/40 p-1.5 sm:p-2 rounded text-white text-center w-20 sm:w-24 relative order-2 sm:order-1", currentPlayerId === leftBot?.user_id && "ring-2 ring-yellow-400")}>
+      <div className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 flex flex-row items-center gap-2 sm:gap-4 z-10">
+         <div className={clsx("bg-black/40 p-1.5 sm:p-2 rounded text-white text-center w-20 sm:w-24 relative", currentPlayerId === leftBot?.user_id && "ring-2 ring-yellow-400")}>
             <div className="font-bold text-xs sm:text-base truncate px-1">{leftBot?.user?.username || 'Player'}</div>
             {/* Hand Count Badge */}
             <div className="flex items-center justify-center gap-1 mt-1 bg-black/30 rounded px-2 py-0.5">
@@ -319,14 +345,14 @@ export const PlayingRoom: React.FC = () => {
                 <span className="text-xs sm:text-sm font-bold text-yellow-300">{leftBot?.hand_cards?.length ?? '?'}</span>
             </div>
          </div>
-         <div className="min-w-[80px] sm:min-w-[100px] min-h-[40px] sm:min-h-[60px] flex items-center justify-center sm:justify-start order-1 sm:order-2">
+         <div className="min-w-[80px] sm:min-w-[100px] min-h-[40px] sm:min-h-[60px] flex items-center justify-center sm:justify-start">
              <TableCards move={leftMove} />
          </div>
       </div>
 
       {/* --- Right Player --- */}
-      <div className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 flex flex-col sm:flex-row-reverse items-center gap-2 sm:gap-4 z-10">
-         <div className={clsx("bg-black/40 p-1.5 sm:p-2 rounded text-white text-center w-20 sm:w-24 relative order-2 sm:order-1", currentPlayerId === rightBot?.user_id && "ring-2 ring-yellow-400")}>
+      <div className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 flex flex-row-reverse items-center gap-2 sm:gap-4 z-10">
+         <div className={clsx("bg-black/40 p-1.5 sm:p-2 rounded text-white text-center w-20 sm:w-24 relative", currentPlayerId === rightBot?.user_id && "ring-2 ring-yellow-400")}>
             <div className={clsx("font-bold text-xs sm:text-base truncate px-1", theme.textColorClass)}>{rightBot?.user?.username || 'Player'}</div>
              {/* Hand Count Badge */}
             <div className="flex items-center justify-center gap-1 mt-1 bg-black/30 rounded px-2 py-0.5">
@@ -334,7 +360,7 @@ export const PlayingRoom: React.FC = () => {
                 <span className="text-xs sm:text-sm font-bold text-yellow-300">{rightBot?.hand_cards?.length ?? '?'}</span>
             </div>
          </div>
-         <div className="min-w-[80px] sm:min-w-[100px] min-h-[40px] sm:min-h-[60px] flex items-center justify-center sm:justify-end order-1 sm:order-2">
+         <div className="min-w-[80px] sm:min-w-[100px] min-h-[40px] sm:min-h-[60px] flex items-center justify-center sm:justify-end">
              <TableCards move={rightMove} />
          </div>
       </div>
