@@ -2,6 +2,7 @@
 alter table public.game_players add column if not exists played_times int default 0;
 alter table public.game_players add column if not exists is_h2_owner boolean default false;
 alter table public.game_players add column if not exists is_d2_owner boolean default false;
+alter table public.game_players add column if not exists score_change int default 0;
 
 -- 2. Update start_game to populate new columns
 create or replace function public.start_game(
@@ -25,9 +26,9 @@ declare
   v_has_h2 boolean;
   v_has_d2 boolean;
 begin
-  -- Create Game
-  insert into public.games (room_id, status, current_player_id, started_at)
-  values (p_room_id, 'playing', p_first_player_id, now())
+  -- Create Game with explicit game_state initialization
+  insert into public.games (room_id, status, current_player_id, started_at, game_state)
+  values (p_room_id, 'playing', p_first_player_id, now(), '{"base_score": 1, "multiplier": 1}'::jsonb)
   returning id into v_game_id;
   
   -- Create Game Players
@@ -46,8 +47,8 @@ begin
     v_has_h2 := exists (select 1 from jsonb_array_elements(v_hand) c where c->>'suit' = 'hearts' and c->>'rank' = '2');
     v_has_d2 := exists (select 1 from jsonb_array_elements(v_hand) c where c->>'suit' = 'diamonds' and c->>'rank' = '2');
     
-    insert into public.game_players (game_id, user_id, hand_cards, cards_count, is_landlord, is_invincible, is_h2_owner, is_d2_owner)
-    values (v_game_id, v_player.user_id, v_hand, v_count, v_is_landlord, v_is_invincible, v_has_h2, v_has_d2);
+    insert into public.game_players (game_id, user_id, hand_cards, cards_count, is_landlord, is_invincible, is_h2_owner, is_d2_owner, score_change)
+    values (v_game_id, v_player.user_id, v_hand, v_count, v_is_landlord, v_is_invincible, v_has_h2, v_has_d2, 0);
   end loop;
   
   -- Update Room Status
@@ -157,9 +158,15 @@ begin
   end if;
 
   if v_multiplier <> coalesce((v_game.game_state->>'multiplier')::int, 1) then
-    update public.games 
-    set game_state = jsonb_set(game_state, '{multiplier}', to_jsonb(v_multiplier))
-    where id = p_game_id;
+    if v_game.game_state is null then
+        update public.games 
+        set game_state = jsonb_build_object('multiplier', v_multiplier, 'base_score', 1)
+        where id = p_game_id;
+    else
+        update public.games 
+        set game_state = jsonb_set(game_state, '{multiplier}', to_jsonb(v_multiplier))
+        where id = p_game_id;
+    end if;
   end if;
 
   -- Insert Move
