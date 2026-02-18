@@ -441,7 +441,25 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
 
       // Check if free turn
       // Logic: If I am the winner, or no one is winner (start of game), I must play.
-      let isFreeTurn = (currentWinnerId === user.id || currentWinnerId === null);
+      // FIX: If currentWinnerId is NULL, it might mean I am the first player of the game, OR it might mean I am the first player of a NEW ROUND.
+      // But if someone else played before me in this game, currentWinnerId should NOT be null.
+      // However, if the game just started, currentWinnerId is null.
+      
+      let isFreeTurn = (currentWinnerId === user.id);
+      
+      // Special case: Start of game (currentWinnerId is null)
+      // If I am the start player, I cannot pass.
+      // But how do I know if I am the start player? 
+      // The backend pass_turn will check this.
+      // Frontend check: If table is empty?
+      const isTableEmpty = Object.values(tableMoves).every(m => !m || m.move_type === 'pass');
+      
+      if (currentWinnerId === null && isTableEmpty) {
+          // It's start of game or start of round where everyone passed?
+          // If everyone passed, currentWinnerId should be the last person who played.
+          // If start of game, no one played yet.
+          isFreeTurn = true; 
+      }
 
       // Fallback/Safety Check:
       // If logic thinks it's a free turn (e.g. currentWinnerId is null),
