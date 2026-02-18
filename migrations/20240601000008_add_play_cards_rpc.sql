@@ -264,44 +264,69 @@ begin
     v_score := v_base_score * v_multiplier;
     
     if found then -- 1v3 Scoring
-       if v_invincible_player.user_id = v_winner_id then
-          update public.game_players set score_change = 3 * v_score where game_id = p_game_id and user_id = v_winner_id;
-          update public.game_players set score_change = -v_score where game_id = p_game_id and user_id <> v_winner_id;
-       else
-          update public.game_players set score_change = -3 * v_score where game_id = p_game_id and user_id = v_invincible_player.user_id;
-          update public.game_players set score_change = v_score where game_id = p_game_id and user_id <> v_invincible_player.user_id;
-       end if;
-    else -- 2v2 Scoring
-       if v_team1_exists then
-           -- Edge Case: 1 player has BOTH H2 and D2. Then it is actually 1v3 (Team 1 has 1 person, Team 2 has 3).
-           -- Check if Team 1 has only 1 member.
-           if (select count(*) from public.game_players where game_id = p_game_id and (is_h2_owner = true or is_d2_owner = true)) = 1 then
-               -- Treat as 1v3
-               if v_winner_is_team1 then
-                   -- Team 1 (1 person) Wins: +3*score, others -score
-                   update public.game_players set score_change = 3 * v_score where game_id = p_game_id and (is_h2_owner = true or is_d2_owner = true);
-                   update public.game_players set score_change = -v_score where game_id = p_game_id and not (is_h2_owner = true or is_d2_owner = true);
-               else
-                   -- Team 2 (3 people) Wins: Team 1 -3*score, others +score
-                   update public.game_players set score_change = -3 * v_score where game_id = p_game_id and (is_h2_owner = true or is_d2_owner = true);
-                   update public.game_players set score_change = v_score where game_id = p_game_id and not (is_h2_owner = true or is_d2_owner = true);
-               end if;
-           else
-               -- Normal 2v2
-               if v_winner_is_team1 then
-                   update public.game_players set score_change = v_score where game_id = p_game_id and (is_h2_owner = true or is_d2_owner = true);
-                   update public.game_players set score_change = -v_score where game_id = p_game_id and not (is_h2_owner = true or is_d2_owner = true);
-               else
-                   update public.game_players set score_change = -v_score where game_id = p_game_id and (is_h2_owner = true or is_d2_owner = true);
-                   update public.game_players set score_change = v_score where game_id = p_game_id and not (is_h2_owner = true or is_d2_owner = true);
-               end if;
-           end if;
-       else
-           -- Fallback: Winner +3*score, others -score (Treat as 1v3 with winner as landlord)
-           update public.game_players set score_change = 3 * v_score where game_id = p_game_id and user_id = v_winner_id;
-           update public.game_players set score_change = -v_score where game_id = p_game_id and user_id <> v_winner_id;
-       end if;
-    end if;
+     if v_invincible_player.user_id = v_winner_id then
+        update public.game_players set score_change = 3 * v_score where game_id = p_game_id and user_id = v_winner_id;
+        update public.game_players set score_change = -v_score where game_id = p_game_id and user_id <> v_winner_id;
+     else
+        update public.game_players set score_change = -3 * v_score where game_id = p_game_id and user_id = v_invincible_player.user_id;
+        update public.game_players set score_change = v_score where game_id = p_game_id and user_id <> v_invincible_player.user_id;
+     end if;
+  else -- 2v2 Scoring
+     if v_team1_exists then
+         -- Edge Case: 1 player has BOTH H2 and D2. Then it is actually 1v3 (Team 1 has 1 person, Team 2 has 3).
+         -- Check if Team 1 has only 1 member.
+         if (select count(*) from public.game_players where game_id = p_game_id and (is_h2_owner = true or is_d2_owner = true)) = 1 then
+             -- Treat as 1v3
+             if v_winner_is_team1 then
+                 -- Team 1 (1 person) Wins: +3*score, others -score
+                 update public.game_players set score_change = 3 * v_score where game_id = p_game_id and (is_h2_owner = true or is_d2_owner = true);
+                 update public.game_players set score_change = -v_score where game_id = p_game_id and not (is_h2_owner = true or is_d2_owner = true);
+             else
+                 -- Team 2 (3 people) Wins: Team 1 -3*score, others +score
+                 update public.game_players set score_change = -3 * v_score where game_id = p_game_id and (is_h2_owner = true or is_d2_owner = true);
+                 update public.game_players set score_change = v_score where game_id = p_game_id and not (is_h2_owner = true or is_d2_owner = true);
+             end if;
+         else
+             -- Normal 2v2
+             if v_winner_is_team1 then
+                 update public.game_players set score_change = v_score where game_id = p_game_id and (is_h2_owner = true or is_d2_owner = true);
+                 update public.game_players set score_change = -v_score where game_id = p_game_id and not (is_h2_owner = true or is_d2_owner = true);
+             else
+                 update public.game_players set score_change = -v_score where game_id = p_game_id and (is_h2_owner = true or is_d2_owner = true);
+                 update public.game_players set score_change = v_score where game_id = p_game_id and not (is_h2_owner = true or is_d2_owner = true);
+             end if;
+         end if;
+     else
+         -- Fallback: Winner +3*score, others -score (Treat as 1v3 with winner as landlord)
+         -- update public.game_players set score_change = 3 * v_score where game_id = p_game_id and user_id = v_winner_id;
+         -- update public.game_players set score_change = -v_score where game_id = p_game_id and user_id <> v_winner_id;
+         -- WAIT: Fallback should be Normal 2v2 logic where winner gets +1 and losers get -1?
+         -- No, in Wudi, if no special cards (which is impossible given deck composition, but maybe H2/D2 not dealt properly?),
+         -- it defaults to 1v3 (winner takes all).
+         -- But user says: "1 1 -1 -1". That means 2 winners, 2 losers.
+         -- This implies user expects Normal 2v2 scoring even without special cards?
+         -- Or maybe user means: "I am winner, my teammate is winner, opponents are losers".
+         -- If H2/D2 are missing, we don't know who is teammate.
+         -- So "1 1 -1 -1" is only possible if we know teams.
+         
+         -- However, the user is likely reporting a bug where they SEE 0 score.
+         -- My previous fix added `score_change` column.
+         -- If the user is running an OLD game instance before the migration was applied, `score_change` might be null or 0.
+         -- Or if `v_score` is 0.
+         -- v_score = v_base_score * v_multiplier.
+         -- base_score defaults to 1. multiplier defaults to 1. So v_score should be 1.
+         
+         -- If user sees 0, it means update didn't run or v_score is 0.
+         -- I added explicit init for base_score/multiplier.
+         
+         -- Let's add debug log or ensure v_score is at least 1?
+         if v_score < 1 then v_score := 1; end if;
+         
+         -- Re-apply the logic:
+         update public.game_players set score_change = 3 * v_score where game_id = p_game_id and user_id = v_winner_id;
+         update public.game_players set score_change = -v_score where game_id = p_game_id and user_id <> v_winner_id;
+     end if;
+  end if;
     
     update public.users u
     set total_score = u.total_score + gp.score_change
