@@ -92,18 +92,20 @@ const SuitIcon = ({ suit, small }: { suit: Suit, small?: boolean }) => {
     clubs: '♣',
     spades: '♠'
   }[suit];
-  // Further reduced sizes for mobile landscape
-  const size = small ? "text-xs sm:text-base md:text-xl" : "text-sm sm:text-lg md:text-2xl";
+  // Revert size to be legible but small
+  const size = small ? "text-xs sm:text-sm" : "text-sm sm:text-base md:text-xl";
   return <span className={clsx(size, "font-bold", color)}>{symbol}</span>;
 };
 
 const CardView = ({ card, selected, onClick, small }: { card: Card; selected: boolean; onClick?: () => void, small?: boolean }) => {
   const color = ['hearts', 'diamonds'].includes(card.suit) ? 'text-red-500' : 'text-slate-800';
   
-  // Drastically reduced sizes for small screens (mobile landscape)
-  const w = small ? "w-6 sm:w-8 md:w-10" : "w-10 sm:w-14 md:w-24";
-  const h = small ? "h-9 sm:h-11 md:h-14" : "h-14 sm:h-20 md:h-36";
-  const text = small ? "text-[8px] sm:text-[10px] md:text-xs font-bold" : "text-[10px] sm:text-xs md:text-base";
+  // Revert to original aspect ratio but 1/2 size of original
+  // Original was approx w-16 h-24. Half size is w-8 h-12.
+  // Small mode (for other players) even smaller.
+  const w = small ? "w-6 sm:w-8" : "w-8 sm:w-10 md:w-12";
+  const h = small ? "h-8 sm:h-11" : "h-11 sm:h-14 md:h-16";
+  const text = small ? "text-[8px] sm:text-[10px] font-bold" : "text-[10px] sm:text-xs md:text-sm";
   
   if (small) {
       return (
@@ -113,7 +115,7 @@ const CardView = ({ card, selected, onClick, small }: { card: Card; selected: bo
             `relative ${w} ${h} bg-white rounded border shadow-sm flex flex-col items-center justify-start select-none cursor-default flex-shrink-0`,
             "border-slate-300"
           )}
-          style={{ marginLeft: '-8px' }} 
+          style={{ marginLeft: '-10px' }} 
         >
             {/* Number at the top */}
             <span className={clsx(text, color, "leading-none mt-0.5")}>{card.rank}</span>
@@ -129,16 +131,17 @@ const CardView = ({ card, selected, onClick, small }: { card: Card; selected: bo
     <div
       onClick={onClick}
       className={clsx(
-        `relative ${w} ${h} bg-white rounded-lg border shadow-md flex flex-col items-center justify-between p-0.5 select-none transition-transform cursor-pointer hover:shadow-lg`,
-        selected ? "-translate-y-3 sm:-translate-y-4 md:-translate-y-6 border-blue-500 ring-1 sm:ring-2 ring-blue-200" : "border-slate-200",
+        `relative ${w} ${h} bg-white rounded-md border shadow-md flex flex-col items-center justify-between p-0.5 select-none transition-transform cursor-pointer hover:shadow-lg`,
+        selected ? "-translate-y-2 sm:-translate-y-3 border-blue-500 ring-1 ring-blue-200" : "border-slate-200",
         "flex-shrink-0"
       )}
-      style={{ marginLeft: '-30px sm:-40px md:-60px' }} 
+      style={{ marginLeft: '-16px sm:-20px md:-24px' }} 
     >
       <div className={`self-start ${text} font-bold flex flex-col items-center leading-none`}>
         <span className={color}>{card.rank}</span>
         <SuitIcon suit={card.suit} />
       </div>
+      {/* Center Suit - Visible only on slightly larger cards */}
       <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
           <SuitIcon suit={card.suit} />
       </div>
