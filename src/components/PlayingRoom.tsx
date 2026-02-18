@@ -192,8 +192,8 @@ const CardView = ({ card, selected, onClick, small }: { card: Card; selected: bo
 const TableCards = ({ move }: { move: GameMove | null }) => {
     if (!move) return null;
     if (move.move_type === 'pass') {
-        return <div className="bg-black/40 text-white px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold">不出</div>;
-    }
+    return <div className="bg-black/40 text-white px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold animate-in fade-in zoom-in duration-300">不出</div>;
+  }
     return (
         <div className="flex items-center justify-center">
             {sortCards(move.cards_played).map(card => (
@@ -478,19 +478,21 @@ export const PlayingRoom: React.FC = () => {
 
       {/* --- Center Info --- */}
       <div className="flex-1 flex flex-col items-center justify-center pointer-events-none mt-2 sm:mt-8 md:mt-12 relative">
-        <div className={clsx("font-bold text-lg sm:text-xl animate-pulse mb-4 sm:mb-8", theme.textColorClass)}>
-            {isMyTurn ? "Your Turn" : `Waiting for ${gamePlayers.find(p=>p.user_id===currentPlayerId)?.user?.username || '...'}...`}
-        </div>
+        {isMyTurn && (
+          <div className={clsx("font-bold text-lg sm:text-xl animate-pulse mb-4 sm:mb-8", theme.textColorClass)}>
+            Your Turn
+          </div>
+        )}
         
-        {/* My Table Cards (Just above controls) */}
-        <div className="absolute bottom-2 sm:bottom-4 left-1/2 -translate-x-1/2 min-h-[40px] sm:min-h-[60px]">
+        {/* My Played Cards (Center) */}
+        <div className="mb-0 sm:mb-2 min-h-[40px] sm:min-h-[60px] translate-y-8 sm:translate-y-12">
             <TableCards move={myMove} />
         </div>
       </div>
 
       {/* --- Controls --- */}
       {isMyTurn && (
-        <div className="h-12 sm:h-16 flex items-center justify-center gap-4 px-4 z-10 mb-2">
+        <div className="h-12 sm:h-16 flex items-center justify-center gap-4 px-4 z-10 mb-2 translate-y-4 sm:translate-y-6">
           <button
             onClick={handlePass}
             className="px-6 py-1.5 sm:py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-full font-bold text-sm sm:text-base shadow-lg active:scale-95 transition-all"
@@ -512,22 +514,18 @@ export const PlayingRoom: React.FC = () => {
         </div>
       )}
 
-      {/* --- My Hand --- */}
-      <div className={clsx(
-          "h-28 sm:h-40 md:h-48 w-full flex items-center justify-center px-4 sm:px-10 overflow-x-auto transition-colors",
-          "bg-black/20 backdrop-blur-sm",
-          isMyTurn ? "ring-t-4 ring-yellow-400" : ""
-      )}>
-        <div className="flex items-center pl-8 pr-4 py-2 sm:py-4 min-w-min">
-          {myHand.map((card) => (
-            <CardView 
-              key={card.id} 
-              card={card} 
-              selected={selectedCardIds.includes(card.id)}
-              onClick={() => toggleSelect(card.id)}
-            />
-          ))}
-        </div>
+      {/* --- Hand Cards --- */}
+      <div className="fixed bottom-0 left-0 right-0 h-24 sm:h-32 md:h-40 z-20 flex justify-center items-end pb-1 sm:pb-2 select-none overflow-visible translate-y-3 sm:translate-y-4">
+          <div className="flex items-end justify-center px-4" style={{ width: 'max-content' }}>
+            {myHand.map((card, index) => (
+              <CardView 
+                key={card.id} 
+                card={card} 
+                selected={selectedCardIds.includes(card.id)}
+                onClick={() => toggleSelect(card.id)}
+              />
+            ))}
+          </div>
       </div>
     </div>
   );

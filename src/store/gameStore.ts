@@ -89,15 +89,20 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       set({ room: room as Room, players: playersWithUser as any });
 
       // 3. If playing, fetch game data
-      if (room.status === 'playing') {
-        const { data: game, error: gameError } = await supabase
+      // MODIFIED: Fetch game even if status is finished, so we can show results
+      if (room.status === 'playing' || room.status === 'finished') {
+        const { data: games, error: gameError } = await supabase
           .from('games')
           .select('*')
           .eq('room_id', roomId)
-          .eq('status', 'playing')
-          .single();
+          .order('created_at', { ascending: false })
+          .limit(1);
         
-        if (game && !gameError) {
+        if (gameError) throw gameError;
+
+        const game = games?.[0];
+        
+        if (game) {
           set({ game: game as Game });
           
           // Fetch Game Players
