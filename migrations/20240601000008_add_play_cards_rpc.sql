@@ -111,8 +111,10 @@ begin
   
   -- So we need to check if there are any finished games in this room.
   if v_moves_count = 0 then
-      if not exists (select 1 from public.games where room_id = v_game.room_id and status = 'finished') then
-          -- This is the FIRST game (no finished games yet)
+      -- FIX: Check if there are ANY previous games in this room, regardless of status.
+      -- If there is at least one other game created before this one, then this is NOT the first game.
+      if not exists (select 1 from public.games where room_id = v_game.room_id and created_at < v_game.created_at) then
+          -- This is the FIRST game (no previous games found)
           -- So we enforce Spade 3 rule
           v_has_spade3 := exists (
             select 1 from jsonb_array_elements(v_player.hand_cards) c
