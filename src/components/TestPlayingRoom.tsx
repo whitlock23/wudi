@@ -263,14 +263,14 @@ export const TestPlayingRoom: React.FC = () => {
          )}
          
          {/* My Played Cards (Center) */}
-         <div className="mb-0 sm:mb-2 min-h-[40px] sm:min-h-[60px] translate-y-8 sm:translate-y-12">
+         <div className="mb-0 sm:mb-2 min-h-[40px] sm:min-h-[60px] translate-y-20 sm:translate-y-28">
              <TableCards move={myMove} />
          </div>
       </div>
       
       {/* --- Controls --- */}
       {isMyTurn && (
-        <div className="h-12 sm:h-16 flex items-center justify-center gap-4 px-4 z-10 mb-2 translate-y-4 sm:translate-y-6">
+        <div className="h-12 sm:h-16 flex items-center justify-center gap-4 px-4 z-10 mb-2 translate-y-8 sm:translate-y-12">
           <button
             onClick={handlePass}
             className="px-6 py-1.5 sm:py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-full font-bold text-sm sm:text-base shadow-lg active:scale-95 transition-all"

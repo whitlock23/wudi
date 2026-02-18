@@ -48,49 +48,49 @@ const GameOverModal = ({
     }, [timeLeft, autoStart, isOwner, onRestart]);
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-300">
-                <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-6 text-center">
-                    <h2 className="text-3xl font-black text-white uppercase tracking-wider drop-shadow-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-300 max-h-[90vh] flex flex-col">
+                <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-4 sm:p-6 text-center shrink-0">
+                    <h2 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-wider drop-shadow-md">
                         游戏结束
                     </h2>
-                    <p className="text-white/80 font-medium mt-1">
+                    <p className="text-white/80 font-medium mt-1 text-sm sm:text-base">
                         最终倍率: x{multiplier}
                     </p>
                     {isOwner && autoStart && (
-                        <p className="text-white font-bold mt-2 animate-pulse bg-white/20 rounded-full py-1 px-3 inline-block">
+                        <p className="text-white font-bold mt-2 animate-pulse bg-white/20 rounded-full py-1 px-3 inline-block text-xs sm:text-sm">
                              {timeLeft}秒后自动开始
                         </p>
                     )}
                     {!isOwner && autoStart && (
-                         <p className="text-white/90 font-medium mt-2">
+                         <p className="text-white/90 font-medium mt-2 text-xs sm:text-sm">
                              等待房主开始...
                         </p>
                     )}
                 </div>
                 
-                <div className="p-6 space-y-4">
+                <div className="p-4 sm:p-6 space-y-2 sm:space-y-4 overflow-y-auto grow">
                     {sortedPlayers.map((p, idx) => (
-                        <div key={p.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">
-                            <div className="flex items-center gap-3">
+                        <div key={p.id} className="flex items-center justify-between p-2 sm:p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">
+                            <div className="flex items-center gap-2 sm:gap-3">
                                 <div className={clsx(
-                                    "w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm",
+                                    "w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center rounded-full font-bold text-xs sm:text-sm",
                                     idx === 0 ? "bg-yellow-100 text-yellow-700" : "bg-slate-200 text-slate-600"
                                 )}>
                                     {idx + 1}
                                 </div>
                                 <div>
-                                    <div className="font-bold text-slate-800">
+                                    <div className="font-bold text-slate-800 text-sm sm:text-base">
                                         {p.user?.username || 'Unknown'}
                                     </div>
-                                    <div className="text-xs text-slate-500 flex gap-2">
+                                    <div className="text-[10px] sm:text-xs text-slate-500 flex gap-2">
                                         {p.is_invincible && <span className="text-purple-600 font-bold">无敌</span>}
                                         {/* Since we didn't store team info explicitly in game_players for 2v2 teammates, we can't show it easily here yet unless we infer it */}
                                     </div>
                                 </div>
                             </div>
                             <div className={clsx(
-                                "text-xl font-black",
+                                "text-lg sm:text-xl font-black",
                                 p.score_change > 0 ? "text-red-500" : "text-slate-400"
                             )}>
                                 {p.score_change > 0 ? '+' : ''}{p.score_change}
@@ -99,20 +99,20 @@ const GameOverModal = ({
                     ))}
                 </div>
 
-                <div className="p-6 bg-slate-50 flex gap-4">
+                <div className="p-4 sm:p-6 bg-slate-50 flex gap-4 shrink-0">
                     <button 
                         onClick={onExit}
-                        className="flex-1 py-3 px-4 rounded-xl bg-white border-2 border-slate-200 text-slate-600 font-bold hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-2"
+                        className="flex-1 py-2 sm:py-3 px-4 rounded-xl bg-white border-2 border-slate-200 text-slate-600 font-bold hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
                     >
-                        <Home size={18} />
+                        <Home size={16} className="sm:w-[18px] sm:h-[18px]" />
                         返回大厅
                     </button>
                     {isOwner && (
                         <button 
                             onClick={onRestart}
-                            className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold hover:from-amber-600 hover:to-orange-700 shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
+                            className="flex-1 py-2 sm:py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold hover:from-amber-600 hover:to-orange-700 shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
                         >
-                            <RotateCcw size={18} />
+                            <RotateCcw size={16} className="sm:w-[18px] sm:h-[18px]" />
                             {autoStart ? `再来一局 (${timeLeft})` : '再来一局'}
                         </button>
                     )}
@@ -485,14 +485,14 @@ export const PlayingRoom: React.FC = () => {
         )}
         
         {/* My Played Cards (Center) */}
-        <div className="mb-0 sm:mb-2 min-h-[40px] sm:min-h-[60px] translate-y-8 sm:translate-y-12">
-            <TableCards move={myMove} />
-        </div>
+         <div className="mb-0 sm:mb-2 min-h-[40px] sm:min-h-[60px] translate-y-20 sm:translate-y-28">
+             <TableCards move={myMove} />
+         </div>
       </div>
-
+      
       {/* --- Controls --- */}
       {isMyTurn && (
-        <div className="h-12 sm:h-16 flex items-center justify-center gap-4 px-4 z-10 mb-2 translate-y-4 sm:translate-y-6">
+        <div className="h-12 sm:h-16 flex items-center justify-center gap-4 px-4 z-10 mb-2 translate-y-8 sm:translate-y-12">
           <button
             onClick={handlePass}
             className="px-6 py-1.5 sm:py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-full font-bold text-sm sm:text-base shadow-lg active:scale-95 transition-all"

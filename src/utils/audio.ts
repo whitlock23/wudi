@@ -8,15 +8,15 @@ export type SoundType = 'play' | 'pass' | 'win' | 'lose' | 'alert' | 'start' | '
 // Map sound types to file paths
 // Note: You need to add these files to your public/sounds directory
 const SOUND_FILES: Record<SoundType, string> = {
-    play: '/sounds/play.mp3',
-    pass: '/sounds/pass.mp3',
-    win: '/sounds/win.mp3',
-    lose: '/sounds/lose.mp3',
-    alert: '/sounds/alert.mp3',
-    start: '/sounds/start.mp3',
-    click: '/sounds/click.mp3',
-    error: '/sounds/error.mp3',
-    countdown: '/sounds/countdown.mp3'
+    play: '/sounds/play.wav',
+    pass: '/sounds/pass.wav',
+    win: '/sounds/win.wav',
+    lose: '/sounds/lose.wav',
+    alert: '/sounds/alert.wav',
+    start: '/sounds/start.wav',
+    click: '/sounds/click.wav',
+    error: '/sounds/error.wav',
+    countdown: '/sounds/countdown.wav'
 };
 
 // Cache audio objects to avoid recreating them
@@ -38,6 +38,10 @@ export const playSound = (type: SoundType, volume = 0.5) => {
         // Create if not cached
         if (!audio) {
             audio = new Audio(SOUND_FILES[type]);
+            // Add error handling
+            audio.onerror = (e) => {
+                console.warn(`[Audio] Failed to load sound: ${type}`, e);
+            };
             audioCache[type] = audio;
         }
         
@@ -50,7 +54,7 @@ export const playSound = (type: SoundType, volume = 0.5) => {
         if (playPromise !== undefined) {
             playPromise.catch(error => {
                 // Auto-play was prevented
-                // console.warn(`Audio play failed for ${type}:`, error);
+                console.warn(`[Audio] Play failed for ${type}:`, error);
             });
         }
     } catch (err) {
