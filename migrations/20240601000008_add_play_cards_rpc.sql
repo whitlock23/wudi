@@ -101,21 +101,33 @@ begin
 
   -- Spade 3 Check
   select count(*) into v_moves_count from public.game_moves where game_id = p_game_id;
+  
+  -- Only check Spade 3 condition if it is the FIRST move of the FIRST game in the room.
+  -- Or simpler: If it is the first move of ANY game, we only enforce Spade 3 if it's the very first game.
+  -- But actually, the rule is:
+  -- Game 1: Must play Spade 3.
+  -- Game 2+: Winner of prev game starts, CAN play anything (even if they have Spade 3).
+  
+  -- So we need to check if there are any finished games in this room.
   if v_moves_count = 0 then
-    v_has_spade3 := exists (
-      select 1 from jsonb_array_elements(v_player.hand_cards) c
-      where c->>'suit' = 'spades' and c->>'rank' = '3'
-    );
-    
-    if v_has_spade3 then
-       v_playing_spade3 := exists (
-         select 1 from jsonb_array_elements(p_cards) c
-         where c->>'suit' = 'spades' and c->>'rank' = '3'
-       );
-       if not v_playing_spade3 then
-         raise exception 'First move must include Spade 3';
-       end if;
-    end if;
+      if not exists (select 1 from public.games where room_id = v_game.room_id and status = 'finished') then
+          -- This is the FIRST game (no finished games yet)
+          -- So we enforce Spade 3 rule
+          v_has_spade3 := exists (
+            select 1 from jsonb_array_elements(v_player.hand_cards) c
+            where c->>'suit' = 'spades' and c->>'rank' = '3'
+          );
+          
+          if v_has_spade3 then
+             v_playing_spade3 := exists (
+               select 1 from jsonb_array_elements(p_cards) c
+               where c->>'suit' = 'spades' and c->>'rank' = '3'
+             );
+             if not v_playing_spade3 then
+               raise exception 'First move must include Spade 3';
+             end if;
+          end if;
+      end if;
   end if;
 
   -- Update Hand
