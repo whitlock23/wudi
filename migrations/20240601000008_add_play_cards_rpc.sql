@@ -153,7 +153,7 @@ begin
   if p_move_type = 'bomb' then
     v_multiplier := v_multiplier * 2;
   elsif p_move_type = 'invincible_bomb' then
-    v_multiplier := v_multiplier * 4;
+    v_multiplier := v_multiplier * 2;
   end if;
 
   if v_multiplier <> coalesce((v_game.game_state->>'multiplier')::int, 1) then
