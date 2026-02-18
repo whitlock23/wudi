@@ -214,9 +214,30 @@ export const useTestGameStore = create<TestGameStoreState>((set, get) => ({
       const { currentPlayerId, currentWinningMove, tableMoves } = get();
       if (currentPlayerId !== HUMAN_ID) return;
       
+      console.log('[passTurn] Check:', { 
+          currentWinningMove, 
+          winnerId: currentWinningMove?.player_id, 
+          myId: HUMAN_ID 
+      });
+
       // Can only pass if not free turn
-      if (!currentWinningMove || currentWinningMove.player_id === HUMAN_ID) {
-          alert("Cannot pass on free turn!");
+      let effectiveWinningMove = currentWinningMove;
+      
+      // Fallback: If currentWinningMove is missing but table has moves from others, allow pass
+      if (!effectiveWinningMove) {
+          const otherPlayMoves = Object.values(tableMoves)
+              .filter((m): m is GameMove => !!m && m.move_type === 'play' && m.player_id !== HUMAN_ID)
+              .sort((a, b) => new Date(b.played_at).getTime() - new Date(a.played_at).getTime());
+              
+          if (otherPlayMoves.length > 0) {
+              effectiveWinningMove = otherPlayMoves[0];
+              console.warn('[passTurn] Recovered winning move from table:', effectiveWinningMove);
+          }
+      }
+
+      if (!effectiveWinningMove || effectiveWinningMove.player_id === HUMAN_ID) {
+          console.warn('Cannot pass on free turn. State:', { currentWinningMove, effectiveWinningMove, currentPlayerId });
+          alert(`Cannot pass on free turn! (Winner: ${effectiveWinningMove?.player_id ?? 'None'})`);
           return;
       }
 
@@ -292,7 +313,7 @@ function runBots() {
         };
         newHand = sortCards(hand.filter(c => !moveCards.some(mc => mc.id === c.id)));
         newWinningMove = move;
-        console.log(`[Bot ${currentPlayerId}] Played`, moveCards.map(c => `${c.rank}${c.suit}`));
+        console.log(`[Bot ${currentPlayerId}] Played`, moveCards.map(c => `${c.rank}${c.suit}`), 'New Winner:', currentPlayerId);
     } else {
         // Pass
         move = {
@@ -303,7 +324,7 @@ function runBots() {
              move_type: 'pass',
              played_at: new Date().toISOString()
         };
-        console.log(`[Bot ${currentPlayerId}] Passed`);
+        console.log(`[Bot ${currentPlayerId}] Passed. Winner remains:`, newWinningMove?.player_id);
     }
     
     newTableMoves[currentPlayerId] = move;

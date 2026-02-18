@@ -92,16 +92,16 @@ const SuitIcon = ({ suit, small }: { suit: Suit, small?: boolean }) => {
     clubs: '♣',
     spades: '♠'
   }[suit];
-  const size = small ? "text-xl" : "text-lg sm:text-2xl";
+  const size = small ? "text-base sm:text-xl" : "text-base sm:text-xl md:text-2xl";
   return <span className={clsx(size, "font-bold", color)}>{symbol}</span>;
 };
 
 const CardView = ({ card, selected, onClick, small }: { card: Card; selected: boolean; onClick?: () => void, small?: boolean }) => {
   const color = ['hearts', 'diamonds'].includes(card.suit) ? 'text-red-500' : 'text-slate-800';
   
-  const w = small ? "w-10" : "w-16 sm:w-24";
-  const h = small ? "h-14" : "h-24 sm:h-36";
-  const text = small ? "text-xl font-bold" : "text-xs sm:text-base";
+  const w = small ? "w-8 sm:w-10" : "w-14 sm:w-20 md:w-24";
+  const h = small ? "h-11 sm:h-14" : "h-20 sm:h-28 md:h-36";
+  const text = small ? "text-xs sm:text-sm font-bold" : "text-[10px] sm:text-xs md:text-base";
   
   if (small) {
       return (
@@ -114,9 +114,9 @@ const CardView = ({ card, selected, onClick, small }: { card: Card; selected: bo
           style={{ marginLeft: '-12px' }} 
         >
             {/* Number at the top */}
-            <span className={clsx(text, color, "leading-none mt-1")}>{card.rank}</span>
+            <span className={clsx(text, color, "leading-none mt-0.5 sm:mt-1")}>{card.rank}</span>
             {/* Suit below */}
-            <div className="mt-0.5">
+            <div className="mt-0 sm:mt-0.5">
                 <SuitIcon suit={card.suit} small />
             </div>
         </div>
@@ -295,11 +295,11 @@ export const PlayingRoom: React.FC = () => {
       </div>
 
       {/* --- Top Player --- */}
-      <div className="absolute top-14 left-1/2 -translate-x-1/2 flex flex-col items-center z-10">
+      <div className="absolute top-12 sm:top-14 left-1/2 -translate-x-1/2 flex flex-col items-center z-10">
          <div className={clsx("bg-black/40 p-1.5 sm:p-2 rounded text-white text-center w-24 sm:w-32 relative", currentPlayerId === topBot?.user_id && "ring-2 ring-yellow-400")}>
             <div className="font-bold text-xs sm:text-base truncate px-1">{topBot?.user?.username || 'Player'}</div>
             {/* Hand Count Badge */}
-            <div className="flex items-center justify-center gap-1 mt-1 bg-black/30 rounded px-2 py-0.5">
+            <div className="flex items-center justify-center gap-1 mt-0.5 sm:mt-1 bg-black/30 rounded px-2 py-0.5">
                 <div className="w-2.5 h-3.5 sm:w-3 sm:h-4 bg-white border border-slate-300 rounded-sm"></div>
                 <span className="text-xs sm:text-sm font-bold text-yellow-300">{topBot?.hand_cards?.length ?? '?'}</span>
             </div>
@@ -340,8 +340,8 @@ export const PlayingRoom: React.FC = () => {
       </div>
 
       {/* --- Center Info --- */}
-      <div className="flex-1 flex flex-col items-center justify-center pointer-events-none mt-4 sm:mt-12 relative">
-        <div className={clsx("font-bold text-lg sm:text-xl animate-pulse mb-8", theme.textColorClass)}>
+      <div className="flex-1 flex flex-col items-center justify-center pointer-events-none mt-2 sm:mt-8 md:mt-12 relative">
+        <div className={clsx("font-bold text-lg sm:text-xl animate-pulse mb-4 sm:mb-8", theme.textColorClass)}>
             {isMyTurn ? "Your Turn" : `Waiting for ${gamePlayers.find(p=>p.user_id===currentPlayerId)?.user?.username || '...'}...`}
         </div>
         
@@ -352,10 +352,10 @@ export const PlayingRoom: React.FC = () => {
       </div>
 
       {/* --- Controls --- */}
-      <div className="h-16 flex items-center justify-center gap-4 px-4 z-10 mb-2">
+      <div className="h-12 sm:h-16 flex items-center justify-center gap-4 px-4 z-10 mb-2">
         <button
           onClick={handlePass}
-          className="px-6 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-full font-bold shadow-lg active:scale-95 transition-all"
+          className="px-6 py-1.5 sm:py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-full font-bold text-sm sm:text-base shadow-lg active:scale-95 transition-all"
         >
           不出
         </button>
@@ -363,7 +363,7 @@ export const PlayingRoom: React.FC = () => {
           onClick={handlePlay}
           disabled={!canPlay}
           className={clsx(
-            "px-8 py-2 rounded-full font-bold shadow-lg active:scale-95 transition-all",
+            "px-8 py-1.5 sm:py-2 rounded-full font-bold text-sm sm:text-base shadow-lg active:scale-95 transition-all",
             canPlay 
               ? theme.accentColorClass 
               : "bg-slate-400 text-slate-200 cursor-not-allowed"
@@ -375,11 +375,11 @@ export const PlayingRoom: React.FC = () => {
 
       {/* --- My Hand --- */}
       <div className={clsx(
-          "h-36 sm:h-48 w-full flex items-center justify-center px-4 sm:px-10 overflow-x-auto transition-colors",
+          "h-28 sm:h-40 md:h-48 w-full flex items-center justify-center px-4 sm:px-10 overflow-x-auto transition-colors",
           "bg-black/20 backdrop-blur-sm",
           isMyTurn ? "ring-t-4 ring-yellow-400" : ""
       )}>
-        <div className="flex items-center pl-8 pr-4 py-4 min-w-min">
+        <div className="flex items-center pl-8 pr-4 py-2 sm:py-4 min-w-min">
           {myHand.map((card) => (
             <CardView 
               key={card.id} 

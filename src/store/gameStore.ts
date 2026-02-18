@@ -363,14 +363,37 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   },
 
   passTurn: async () => {
-      const { game, room, currentWinnerId } = get();
+      const { game, room, currentWinnerId, tableMoves } = get();
       if (!game || !room) return;
       
       const user = useAuthStore.getState().user;
       if (!user) return;
 
+      console.log('[passTurn] Check:', { 
+          currentWinnerId, 
+          userId: user.id, 
+          tableMoves: Object.values(tableMoves).map(m => m ? `${m.player_id}:${m.move_type}` : 'null') 
+      });
+
       // Check if free turn
-      if (currentWinnerId === user.id || currentWinnerId === null) {
+      // Logic: If I am the winner, or no one is winner (start of game), I must play.
+      let isFreeTurn = (currentWinnerId === user.id || currentWinnerId === null);
+
+      // Fallback/Safety Check:
+      // If logic thinks it's a free turn (e.g. currentWinnerId is null),
+      // but there are actual PLAY moves from others on the table,
+      // then it's NOT a free turn. State might be out of sync, but we should allow pass.
+      if (isFreeTurn) {
+          const hasOtherPlayMoves = Object.values(tableMoves).some(
+              m => m && m.move_type === 'play' && m.player_id !== user.id
+          );
+          if (hasOtherPlayMoves) {
+              console.warn('[passTurn] Override: Found other players moves on table, allowing pass despite currentWinnerId check.');
+              isFreeTurn = false;
+          }
+      }
+
+      if (isFreeTurn) {
           alert('当前是你的自由出牌轮，不能跳过！');
           return;
       }
