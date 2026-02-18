@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
@@ -16,15 +16,36 @@ const GameOverModal = ({
     players, 
     multiplier, 
     onRestart, 
-    onExit 
+    onExit,
+    isOwner,
+    autoStart
 }: { 
     players: GamePlayer[]; 
     multiplier: number;
     onRestart: () => void;
     onExit: () => void;
+    isOwner?: boolean;
+    autoStart?: boolean;
 }) => {
     // Sort by score change descending
     const sortedPlayers = [...players].sort((a, b) => b.score_change - a.score_change);
+    
+    const [timeLeft, setTimeLeft] = useState(10);
+    
+    useEffect(() => {
+        if (!autoStart || !isOwner) return;
+
+        if (timeLeft === 0) {
+            onRestart();
+            return;
+        }
+
+        const timer = setInterval(() => {
+            setTimeLeft((prev) => Math.max(0, prev - 1));
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [timeLeft, autoStart, isOwner, onRestart]);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
@@ -36,6 +57,16 @@ const GameOverModal = ({
                     <p className="text-white/80 font-medium mt-1">
                         最终倍率: x{multiplier}
                     </p>
+                    {isOwner && autoStart && (
+                        <p className="text-white font-bold mt-2 animate-pulse bg-white/20 rounded-full py-1 px-3 inline-block">
+                             {timeLeft}秒后自动开始
+                        </p>
+                    )}
+                    {!isOwner && autoStart && (
+                         <p className="text-white/90 font-medium mt-2">
+                             等待房主开始...
+                        </p>
+                    )}
                 </div>
                 
                 <div className="p-6 space-y-4">
@@ -76,8 +107,15 @@ const GameOverModal = ({
                         <Home size={18} />
                         返回大厅
                     </button>
-                    {/* Restart logic is not fully implemented in store yet (need to reset game state), so maybe just exit for now or implement reset */}
-                    {/* For now, just "Back to Lobby" is safest */}
+                    {isOwner && (
+                        <button 
+                            onClick={onRestart}
+                            className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold hover:from-amber-600 hover:to-orange-700 shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
+                        >
+                            <RotateCcw size={18} />
+                            {autoStart ? `再来一局 (${timeLeft})` : '再来一局'}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
@@ -176,6 +214,7 @@ export const PlayingRoom: React.FC = () => {
   const [showScoreboard, setShowScoreboard] = useState(false);
 
   const toggleSelect = (cardId: string) => {
+    playSound('click');
     setSelectedCardIds(prev => 
       prev.includes(cardId) ? prev.filter(id => id !== cardId) : [...prev, cardId]
     );
@@ -285,6 +324,50 @@ export const PlayingRoom: React.FC = () => {
   const topMove = topBot ? tableMoves[topBot.user_id] : null;
   const leftMove = leftBot ? tableMoves[leftBot.user_id] : null;
 
+  const isOwner = room?.owner_id === user?.id;
+
+  const handleRestart = async () => {
+      if (!room || !game) return;
+      
+      // Ideally only the room owner can restart.
+      // We need to know who is the owner.
+      // isOwner is calculated above
+      
+      if (isOwner) {
+          try {
+              await useGameStore.getState().startGame(room.id);
+              // startGame will create new game, triggering subscription update
+              // Modal will disappear as game.status changes to playing (or new game replaces old game)
+          } catch (e: any) {
+              alert(`启动失败: ${e.message}`);
+          }
+      } else {
+          alert("请等待房主开始下一局");
+      }
+  };
+
+  useEffect(() => {
+    // Check if game just finished
+    if (game?.status === 'finished') {
+       if (game.winner_id === user?.id) {
+           playSound('win');
+       } else {
+           playSound('lose');
+       }
+    }
+  }, [game?.status, user?.id]);
+
+  // Use a ref to track previous status to detect changes
+  const prevStatusRef = React.useRef<string | undefined>(game?.status);
+  useEffect(() => {
+      if (prevStatusRef.current === 'waiting' && game?.status === 'playing') {
+          playSound('start');
+      }
+      prevStatusRef.current = game?.status;
+  }, [game?.status]);
+
+  if (!room || !game) return <div className="flex h-screen items-center justify-center text-white font-bold">Loading...</div>;
+
   return (
     <div className={clsx("fixed inset-0 z-[100] flex flex-col overflow-hidden transition-colors duration-500", theme.backgroundClass)}>
       
@@ -293,16 +376,20 @@ export const PlayingRoom: React.FC = () => {
           <GameOverModal 
             players={gamePlayers} 
             multiplier={game?.game_state.multiplier || 1}
-            onRestart={() => {}} 
+            onRestart={handleRestart} 
             onExit={() => setShowScoreboard(false)}
+            isOwner={isOwner}
+            autoStart={false}
           />
       )}
       {game?.status === 'finished' && (
           <GameOverModal 
             players={gamePlayers} 
             multiplier={game.game_state.multiplier || 1}
-            onRestart={() => {}} // TODO: Implement restart
+            onRestart={handleRestart}
             onExit={handleExit}
+            isOwner={isOwner}
+            autoStart={true}
           />
       )}
 

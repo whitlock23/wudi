@@ -3,7 +3,7 @@
 // For now, we use the native HTML5 Audio API.
 
 // Sound effect types
-export type SoundType = 'play' | 'pass' | 'win' | 'lose' | 'alert';
+export type SoundType = 'play' | 'pass' | 'win' | 'lose' | 'alert' | 'start' | 'click' | 'error' | 'countdown';
 
 // Map sound types to file paths
 // Note: You need to add these files to your public/sounds directory
@@ -12,7 +12,11 @@ const SOUND_FILES: Record<SoundType, string> = {
     pass: '/sounds/pass.mp3',
     win: '/sounds/win.mp3',
     lose: '/sounds/lose.mp3',
-    alert: '/sounds/alert.mp3'
+    alert: '/sounds/alert.mp3',
+    start: '/sounds/start.mp3',
+    click: '/sounds/click.mp3',
+    error: '/sounds/error.mp3',
+    countdown: '/sounds/countdown.mp3'
 };
 
 // Cache audio objects to avoid recreating them
