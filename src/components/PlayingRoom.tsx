@@ -402,26 +402,28 @@ export const PlayingRoom: React.FC = () => {
       </div>
 
       {/* --- Controls --- */}
-      <div className="h-12 sm:h-16 flex items-center justify-center gap-4 px-4 z-10 mb-2">
-        <button
-          onClick={handlePass}
-          className="px-6 py-1.5 sm:py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-full font-bold text-sm sm:text-base shadow-lg active:scale-95 transition-all"
-        >
-          不出
-        </button>
-        <button
-          onClick={handlePlay}
-          disabled={!canPlay}
-          className={clsx(
-            "px-8 py-1.5 sm:py-2 rounded-full font-bold text-sm sm:text-base shadow-lg active:scale-95 transition-all",
-            canPlay 
-              ? theme.accentColorClass 
-              : "bg-slate-400 text-slate-200 cursor-not-allowed"
-          )}
-        >
-          出牌
-        </button>
-      </div>
+      {isMyTurn && (
+        <div className="h-12 sm:h-16 flex items-center justify-center gap-4 px-4 z-10 mb-2">
+          <button
+            onClick={handlePass}
+            className="px-6 py-1.5 sm:py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-full font-bold text-sm sm:text-base shadow-lg active:scale-95 transition-all"
+          >
+            不出
+          </button>
+          <button
+            onClick={handlePlay}
+            disabled={!canPlay}
+            className={clsx(
+              "px-8 py-1.5 sm:py-2 rounded-full font-bold text-sm sm:text-base shadow-lg active:scale-95 transition-all",
+              canPlay 
+                ? theme.accentColorClass 
+                : "bg-slate-400 text-slate-200 cursor-not-allowed"
+            )}
+          >
+            出牌
+          </button>
+        </div>
+      )}
 
       {/* --- My Hand --- */}
       <div className={clsx(
