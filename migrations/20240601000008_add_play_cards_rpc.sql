@@ -198,6 +198,35 @@ begin
                -- Check Team 1 (H2 or D2)
                if not exists (select 1 from public.game_players where game_id = p_game_id and (is_h2_owner = true or is_d2_owner = true) and played_times > 0) then
                    v_is_spring := true;
+               else
+                   -- Reverse Spring Logic (Anti-Spring)
+                   -- If the losing team (Team 1) was the start player AND only played 1 time, it counts as spring.
+                   -- Actually, "played_times" counts how many times they successfully played cards.
+                   -- If Team 1 started, they played once. If they never played again, played_times = 1.
+                   -- We need to know who started. But played_times = 1 is a good proxy if they lost badly.
+                   -- Wait, if they are not start player and played 1 time, it means they intercepted once. That is NOT spring.
+                   -- Anti-Spring specifically refers to Landlord (or Team 1) playing only the FIRST hand and nothing else.
+                   -- So we must check if the single play was the FIRST move of the game.
+                   
+                   -- Simplify: If Team 1 played exactly 1 time, AND that 1 time was the VERY FIRST move of the game.
+                   if (select count(*) from public.game_players where game_id = p_game_id and (is_h2_owner = true or is_d2_owner = true) and played_times = 1) > 0 then
+                        -- Check if the first move was made by Team 1
+                        declare
+                            v_first_player_id uuid;
+                        begin
+                            select player_id into v_first_player_id from public.game_moves where game_id = p_game_id order by played_at asc limit 1;
+                            if exists (select 1 from public.game_players where game_id = p_game_id and user_id = v_first_player_id and (is_h2_owner = true or is_d2_owner = true)) then
+                                 -- Also ensure no other member of Team 1 played more than 0 times (except the starter who played 1)
+                                 -- Actually, "played_times" is per player.
+                                 -- If Team 1 has 2 players. Player A started (1). Player B played 0.
+                                 -- If Player A played 2 times, no spring.
+                                 -- So condition: Sum of played_times for Team 1 is 1.
+                                 if (select sum(played_times) from public.game_players where game_id = p_game_id and (is_h2_owner = true or is_d2_owner = true)) = 1 then
+                                     v_is_spring := true;
+                                 end if;
+                            end if;
+                        end;
+                   end if;
                end if;
            end if;
        end if;
@@ -222,15 +251,29 @@ begin
           update public.game_players set score_change = v_score where game_id = p_game_id and user_id <> v_invincible_player.user_id;
        end if;
     else -- 2v2 Scoring
-       -- If 2v2 logic is not fully robust (e.g. no H2/D2 found), fallback to simple winner takes all? 
-       -- But v_team1_exists check handles presence.
        if v_team1_exists then
-           if v_winner_is_team1 then
-               update public.game_players set score_change = v_score where game_id = p_game_id and (is_h2_owner = true or is_d2_owner = true);
-               update public.game_players set score_change = -v_score where game_id = p_game_id and not (is_h2_owner = true or is_d2_owner = true);
+           -- Edge Case: 1 player has BOTH H2 and D2. Then it is actually 1v3 (Team 1 has 1 person, Team 2 has 3).
+           -- Check if Team 1 has only 1 member.
+           if (select count(*) from public.game_players where game_id = p_game_id and (is_h2_owner = true or is_d2_owner = true)) = 1 then
+               -- Treat as 1v3
+               if v_winner_is_team1 then
+                   -- Team 1 (1 person) Wins: +3*score, others -score
+                   update public.game_players set score_change = 3 * v_score where game_id = p_game_id and (is_h2_owner = true or is_d2_owner = true);
+                   update public.game_players set score_change = -v_score where game_id = p_game_id and not (is_h2_owner = true or is_d2_owner = true);
+               else
+                   -- Team 2 (3 people) Wins: Team 1 -3*score, others +score
+                   update public.game_players set score_change = -3 * v_score where game_id = p_game_id and (is_h2_owner = true or is_d2_owner = true);
+                   update public.game_players set score_change = v_score where game_id = p_game_id and not (is_h2_owner = true or is_d2_owner = true);
+               end if;
            else
-               update public.game_players set score_change = -v_score where game_id = p_game_id and (is_h2_owner = true or is_d2_owner = true);
-               update public.game_players set score_change = v_score where game_id = p_game_id and not (is_h2_owner = true or is_d2_owner = true);
+               -- Normal 2v2
+               if v_winner_is_team1 then
+                   update public.game_players set score_change = v_score where game_id = p_game_id and (is_h2_owner = true or is_d2_owner = true);
+                   update public.game_players set score_change = -v_score where game_id = p_game_id and not (is_h2_owner = true or is_d2_owner = true);
+               else
+                   update public.game_players set score_change = -v_score where game_id = p_game_id and (is_h2_owner = true or is_d2_owner = true);
+                   update public.game_players set score_change = v_score where game_id = p_game_id and not (is_h2_owner = true or is_d2_owner = true);
+               end if;
            end if;
        else
            -- Fallback: Winner +3*score, others -score (Treat as 1v3 with winner as landlord)
