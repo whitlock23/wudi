@@ -131,23 +131,19 @@ const CardView = ({ card, selected, onClick, small }: { card: Card; selected: bo
     <div
       onClick={onClick}
       className={clsx(
-        `relative ${w} ${h} bg-white rounded-md border shadow-md flex flex-col items-center justify-between p-0.5 select-none transition-transform cursor-pointer hover:shadow-lg`,
+        `relative ${w} ${h} bg-white rounded-md border shadow-md flex flex-col items-start justify-start p-0.5 select-none transition-transform cursor-pointer hover:shadow-lg`,
         selected ? "-translate-y-2 sm:-translate-y-3 border-blue-500 ring-1 ring-blue-200" : "border-slate-200",
         "flex-shrink-0"
       )}
       style={{ marginLeft: '-16px sm:-20px md:-24px' }} 
     >
-      <div className={`self-start ${text} font-bold flex flex-col items-center leading-none`}>
+      <div className={`self-start ${text} font-bold flex flex-col items-center leading-none pl-0.5 pt-0.5`}>
         <span className={color}>{card.rank}</span>
         <SuitIcon suit={card.suit} />
       </div>
       {/* Center Suit - Visible only on slightly larger cards */}
       <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
           <SuitIcon suit={card.suit} />
-      </div>
-      <div className={`self-end rotate-180 ${text} font-bold flex flex-col items-center leading-none`}>
-        <span className={color}>{card.rank}</span>
-        <SuitIcon suit={card.suit} />
       </div>
     </div>
   );
@@ -176,6 +172,7 @@ export const PlayingRoom: React.FC = () => {
   const theme = themes[currentThemeId];
 
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
+  const [showScoreboard, setShowScoreboard] = useState(false);
 
   const toggleSelect = (cardId: string) => {
     setSelectedCardIds(prev => 
@@ -289,6 +286,14 @@ export const PlayingRoom: React.FC = () => {
     <div className={clsx("fixed inset-0 z-[100] flex flex-col overflow-hidden transition-colors duration-500", theme.backgroundClass)}>
       
       {/* --- Game Over Modal --- */}
+      {showScoreboard && (
+          <GameOverModal 
+            players={gamePlayers} 
+            multiplier={game?.game_state.multiplier || 1}
+            onRestart={() => {}} 
+            onExit={() => setShowScoreboard(false)}
+          />
+      )}
       {game?.status === 'finished' && (
           <GameOverModal 
             players={gamePlayers} 
@@ -298,24 +303,33 @@ export const PlayingRoom: React.FC = () => {
           />
       )}
 
-      {/* --- Top Info Bar --- */}
-      <div className="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-black/60 to-transparent z-10 flex justify-center pt-2 pointer-events-none">
-          <div className="bg-black/40 backdrop-blur-md px-4 py-1 rounded-full border border-white/10 text-white/90 text-sm font-medium flex gap-4 shadow-lg">
-              <div className="flex items-center gap-1">
-                  <span className="text-yellow-400">底分:</span>
-                  <span>{game?.game_state.base_score || 1}</span>
-              </div>
-              <div className="w-px h-4 bg-white/20"></div>
-              <div className="flex items-center gap-1">
-                  <span className="text-yellow-400">倍数:</span>
-                  <span className="text-lg font-bold">x{game?.game_state.multiplier || 1}</span>
-              </div>
-          </div>
+      {/* Top Left Controls & Info */}
+      <div className="absolute top-4 left-4 z-30 flex gap-2">
+         {/* Score Info moved to Top Left */}
+         <div className="bg-black/40 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 text-white/90 text-xs font-medium flex gap-3 shadow-lg">
+            <div className="flex items-center gap-1">
+                <span className="text-yellow-400">底:</span>
+                <span>{game?.game_state.base_score || 1}</span>
+            </div>
+            <div className="w-px h-3 bg-white/20"></div>
+            <div className="flex items-center gap-1">
+                <span className="text-yellow-400">倍:</span>
+                <span className="text-sm font-bold">x{game?.game_state.multiplier || 1}</span>
+            </div>
+        </div>
+        <button 
+            className="bg-black/40 text-white/80 hover:text-white px-2 py-1 rounded-full hover:bg-black/60 text-xs flex items-center gap-1 transition-all"
+            onClick={() => setShowScoreboard(true)}
+        >
+            <span>📊</span> Score
+        </button>
+        <ThemeSelector />
       </div>
-      
+
+      {/* --- Top Center: Table Info (Gone, merged to top-left) --- */}
+
       {/* --- Top Right Controls --- */}
       <div className="absolute top-4 right-4 z-20 flex gap-2">
-        <ThemeSelector />
         <button
           onClick={handleExit}
           className="bg-black/40 text-white/80 hover:text-white hover:bg-red-600/80 p-2 rounded-full transition-all"
@@ -326,46 +340,48 @@ export const PlayingRoom: React.FC = () => {
       </div>
 
       {/* --- Top Player --- */}
-      <div className="absolute top-12 sm:top-14 left-1/2 -translate-x-1/2 flex flex-col items-center z-10">
-         <div className={clsx("bg-black/40 p-1.5 sm:p-2 rounded text-white text-center w-24 sm:w-32 relative", currentPlayerId === topBot?.user_id && "ring-2 ring-yellow-400")}>
-            <div className="font-bold text-xs sm:text-base truncate px-1">{topBot?.user?.username || 'Player'}</div>
-            {/* Hand Count Badge */}
-            <div className="flex items-center justify-center gap-1 mt-0.5 sm:mt-1 bg-black/30 rounded px-2 py-0.5">
-                <div className="w-2.5 h-3.5 sm:w-3 sm:h-4 bg-white border border-slate-300 rounded-sm"></div>
-                <span className="text-xs sm:text-sm font-bold text-yellow-300">{topBot?.hand_cards?.length ?? '?'}</span>
+      <div className="absolute top-2 sm:top-4 left-1/2 -translate-x-1/2 flex flex-col items-center z-10">
+         {/* Avatar & Info moved UP and SMALLER */}
+         <div className={clsx("bg-black/40 p-1 rounded text-white text-center w-20 sm:w-24 relative mb-1", currentPlayerId === topBot?.user_id && "ring-2 ring-yellow-400")}>
+            <div className="font-bold text-[10px] sm:text-xs truncate px-1">{topBot?.user?.username || 'Player'}</div>
+            {/* Hand Count Badge - More compact */}
+            <div className="flex items-center justify-center gap-1 mt-0.5 bg-black/30 rounded px-1.5 py-0.5">
+                <div className="w-2 h-3 bg-white border border-slate-300 rounded-[1px]"></div>
+                <span className="text-[10px] sm:text-xs font-bold text-yellow-300">{topBot?.hand_cards?.length ?? '?'}</span>
             </div>
          </div>
-         <div className="mt-1 sm:mt-2 min-h-[40px] sm:min-h-[60px]">
+         {/* Table Cards moved down slightly to clear the avatar */}
+         <div className="mt-0 min-h-[40px] sm:min-h-[60px]">
              <TableCards move={topMove} />
          </div>
       </div>
 
       {/* --- Left Player --- */}
-      <div className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 flex flex-row items-center gap-2 sm:gap-4 z-10">
-         <div className={clsx("bg-black/40 p-1.5 sm:p-2 rounded text-white text-center w-20 sm:w-24 relative", currentPlayerId === leftBot?.user_id && "ring-2 ring-yellow-400")}>
-            <div className="font-bold text-xs sm:text-base truncate px-1">{leftBot?.user?.username || 'Player'}</div>
+      <div className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1 z-10">
+         <div className={clsx("bg-black/40 p-1 rounded text-white text-center w-20 sm:w-24 relative", currentPlayerId === leftBot?.user_id && "ring-2 ring-yellow-400")}>
+            <div className="font-bold text-[10px] sm:text-xs truncate px-1">{leftBot?.user?.username || 'Player'}</div>
             {/* Hand Count Badge */}
-            <div className="flex items-center justify-center gap-1 mt-1 bg-black/30 rounded px-2 py-0.5">
-                <div className="w-2.5 h-3.5 sm:w-3 sm:h-4 bg-white border border-slate-300 rounded-sm"></div>
-                <span className="text-xs sm:text-sm font-bold text-yellow-300">{leftBot?.hand_cards?.length ?? '?'}</span>
+            <div className="flex items-center justify-center gap-1 mt-0.5 bg-black/30 rounded px-1.5 py-0.5">
+                <div className="w-2 h-3 bg-white border border-slate-300 rounded-[1px]"></div>
+                <span className="text-[10px] sm:text-xs font-bold text-yellow-300">{leftBot?.hand_cards?.length ?? '?'}</span>
             </div>
          </div>
-         <div className="min-w-[80px] sm:min-w-[100px] min-h-[40px] sm:min-h-[60px] flex items-center justify-center sm:justify-start">
+         <div className="min-w-[80px] sm:min-w-[100px] min-h-[40px] sm:min-h-[60px] flex items-center justify-center">
              <TableCards move={leftMove} />
          </div>
       </div>
 
       {/* --- Right Player --- */}
-      <div className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 flex flex-row-reverse items-center gap-2 sm:gap-4 z-10">
-         <div className={clsx("bg-black/40 p-1.5 sm:p-2 rounded text-white text-center w-20 sm:w-24 relative", currentPlayerId === rightBot?.user_id && "ring-2 ring-yellow-400")}>
-            <div className={clsx("font-bold text-xs sm:text-base truncate px-1", theme.textColorClass)}>{rightBot?.user?.username || 'Player'}</div>
+      <div className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1 z-10">
+         <div className={clsx("bg-black/40 p-1 rounded text-white text-center w-20 sm:w-24 relative", currentPlayerId === rightBot?.user_id && "ring-2 ring-yellow-400")}>
+            <div className={clsx("font-bold text-[10px] sm:text-xs truncate px-1", theme.textColorClass)}>{rightBot?.user?.username || 'Player'}</div>
              {/* Hand Count Badge */}
-            <div className="flex items-center justify-center gap-1 mt-1 bg-black/30 rounded px-2 py-0.5">
-                <div className="w-2.5 h-3.5 sm:w-3 sm:h-4 bg-white border border-slate-300 rounded-sm"></div>
-                <span className="text-xs sm:text-sm font-bold text-yellow-300">{rightBot?.hand_cards?.length ?? '?'}</span>
+            <div className="flex items-center justify-center gap-1 mt-0.5 bg-black/30 rounded px-1.5 py-0.5">
+                <div className="w-2 h-3 bg-white border border-slate-300 rounded-[1px]"></div>
+                <span className="text-[10px] sm:text-xs font-bold text-yellow-300">{rightBot?.hand_cards?.length ?? '?'}</span>
             </div>
          </div>
-         <div className="min-w-[80px] sm:min-w-[100px] min-h-[40px] sm:min-h-[60px] flex items-center justify-center sm:justify-end">
+         <div className="min-w-[80px] sm:min-w-[100px] min-h-[40px] sm:min-h-[60px] flex items-center justify-center">
              <TableCards move={rightMove} />
          </div>
       </div>
