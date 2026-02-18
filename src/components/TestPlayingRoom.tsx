@@ -144,6 +144,15 @@ export const TestPlayingRoom: React.FC = () => {
   // ... existing code ...
 
   const isMyTurn = currentPlayerId === 'human-player';
+
+  // Sound effect when it becomes my turn
+  const prevIsMyTurnRef = React.useRef<boolean>(false);
+  React.useEffect(() => {
+    if (!prevIsMyTurnRef.current && isMyTurn) {
+      playSound('alert');
+    }
+    prevIsMyTurnRef.current = isMyTurn;
+  }, [isMyTurn]);
   
   // Find bot players
   const rightBot = gamePlayers.find(p => p.seat_position === 1);

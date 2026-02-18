@@ -366,6 +366,15 @@ export const PlayingRoom: React.FC = () => {
       prevStatusRef.current = game?.status;
   }, [game?.status]);
 
+  // Use a ref to track previous turn to detect when it becomes my turn
+  const prevIsMyTurnRef = React.useRef<boolean>(false);
+  useEffect(() => {
+      if (!prevIsMyTurnRef.current && isMyTurn) {
+          playSound('alert');
+      }
+      prevIsMyTurnRef.current = isMyTurn;
+  }, [isMyTurn]);
+
   if (!room || !game) return <div className="flex h-screen items-center justify-center text-white font-bold">Loading...</div>;
 
   return (
