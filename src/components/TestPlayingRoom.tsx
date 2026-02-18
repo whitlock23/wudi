@@ -292,18 +292,22 @@ export const TestPlayingRoom: React.FC = () => {
         </div>
       )}
 
-      {/* --- Hand Cards --- */}
-      <div className="fixed bottom-0 left-0 right-0 h-24 sm:h-32 md:h-40 z-20 flex justify-center items-end pb-1 sm:pb-2 select-none overflow-visible translate-y-3 sm:translate-y-4">
-          <div className="flex items-end justify-center px-4" style={{ width: 'max-content' }}>
-            {myHand.map((card, index) => (
-              <CardView 
-                key={card.id} 
-                card={card} 
-                selected={selectedCardIds.includes(card.id)}
-                onClick={() => toggleSelect(card.id)}
-              />
-            ))}
-          </div>
+      {/* --- My Hand --- */}
+      <div className={clsx(
+          "h-28 sm:h-40 md:h-48 w-full flex items-center justify-center px-4 sm:px-10 overflow-x-auto transition-colors",
+          "bg-black/20 backdrop-blur-sm", // More neutral background
+          isMyTurn ? "ring-t-4 ring-yellow-400" : ""
+      )}>
+        <div className="flex items-center pl-8 pr-4 py-2 sm:py-4 min-w-min">
+          {myHand.map((card) => (
+            <CardView 
+              key={card.id} 
+              card={card} 
+              selected={selectedCardIds.includes(card.id)}
+              onClick={() => toggleSelect(card.id)}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
