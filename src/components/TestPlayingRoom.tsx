@@ -304,7 +304,7 @@ export const TestPlayingRoom: React.FC = () => {
       {/* --- My Hand --- */}
       <div className={clsx(
           "h-28 sm:h-40 md:h-48 w-full flex items-center justify-center px-4 sm:px-10 overflow-x-auto transition-colors",
-          "bg-black/20 backdrop-blur-sm", // More neutral background
+          // "bg-black/20 backdrop-blur-sm", // More neutral background
           isMyTurn ? "ring-t-4 ring-yellow-400" : ""
       )}>
         <div className="flex items-center pl-8 pr-4 py-2 sm:py-4 min-w-min">
