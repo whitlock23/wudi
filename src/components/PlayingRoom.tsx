@@ -133,7 +133,7 @@ const CardView = ({ card, selected, onClick, small }: { card: Card; selected: bo
         selected ? "-translate-y-3 sm:-translate-y-4 md:-translate-y-6 border-blue-500 ring-1 sm:ring-2 ring-blue-200" : "border-slate-200",
         "flex-shrink-0"
       )}
-      style={{ marginLeft: '-20px sm:-24px md:-30px' }} 
+      style={{ marginLeft: '-30px sm:-40px md:-60px' }} 
     >
       <div className={`self-start ${text} font-bold flex flex-col items-center leading-none`}>
         <span className={color}>{card.rank}</span>
