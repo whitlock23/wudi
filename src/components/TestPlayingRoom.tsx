@@ -6,6 +6,7 @@ import { ThemeSelector } from './ThemeSelector';
 import { Card, Suit, GameMove } from '../types';
 import { isValidMove, sortCards } from '../utils/gameLogic';
 import clsx from 'clsx';
+import { playSound } from '../utils/audio';
 
 // Icons for suits
 const SuitIcon = ({ suit, small }: { suit: Suit, small?: boolean }) => {
@@ -160,11 +161,13 @@ export const TestPlayingRoom: React.FC = () => {
   const canPlay = isMyTurn && selectedCardIds.length > 0 && isValidMove(selectedCardIds.map(id => myHand.find(c => c.id === id)!), targetMove, myHand.length, isFirstMoveOfGame);
 
   const handlePass = () => {
+    playSound('pass');
     passTurn();
     setSelectedCardIds([]);
   };
 
   const handlePlay = () => {
+    playSound('play');
     const cardsToPlay = selectedCardIds.map(id => myHand.find(c => c.id === id)!);
     playCards(cardsToPlay);
     setSelectedCardIds([]);

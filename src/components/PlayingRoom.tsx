@@ -8,6 +8,7 @@ import { Card, Suit, GameMove, GamePlayer } from '../types';
 import { isValidMove, sortCards } from '../utils/gameLogic';
 import { LogOut, RotateCcw, Home } from 'lucide-react';
 import clsx from 'clsx';
+import { playSound } from '../utils/audio';
 
 // --- Components ---
 
@@ -233,11 +234,13 @@ export const PlayingRoom: React.FC = () => {
 
   const handlePlay = async () => {
     if (!canPlay) return;
+    playSound('play');
     await playCards(selectedCards);
     setSelectedCardIds([]);
   };
 
   const handlePass = async () => {
+    playSound('pass');
     await passTurn();
     setSelectedCardIds([]);
   };
